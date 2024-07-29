@@ -1,4 +1,3 @@
-// app/api/test-results/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { MedicalTest, ProcessedTest } from '@/types/medicalTests';
@@ -35,17 +34,23 @@ export async function GET(request: NextRequest) {
 
     // Process the data to match the format expected by the component
     const processedData = (data as MedicalTest[]).reduce<ProcessedTest[]>((acc, test) => {
-      const existingTest = acc.find(t => t.name === test.component);
+      const normalizedComponent = test.component.toLowerCase().trim();
+      const existingTestIndex = acc.findIndex(t => t.name.toLowerCase().trim() === normalizedComponent);
       
-      if (existingTest) {
-        existingTest.history.push({
+      if (existingTestIndex !== -1) {
+        acc[existingTestIndex].history.push({
           date: test.date,
           value: test.number_value ?? test.text_value ?? ''
         });
+        // Update latest value and date if this test is more recent
+        if (new Date(test.date) > new Date(acc[existingTestIndex].latestDate)) {
+          acc[existingTestIndex].latestValue = test.number_value ?? test.text_value ?? '';
+          acc[existingTestIndex].latestDate = test.date;
+        }
       } else {
         acc.push({
           id: test.id,
-          name: test.component,
+          name: test.component, // Keep the original case for display
           latestValue: test.number_value ?? test.text_value ?? '',
           unit: test.unit,
           latestDate: test.date,

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const { date, components } = result;
 
     const testDataToInsert = components.map((component: TestComponent) => ({
-      patient_number: 'DYNAMIC_PATIENT_NUMBER', // Replace with actual patient number logic
+      patient_number: '919885842349', // Replace with actual patient number logic
       test_id: crypto.randomUUID(),
       component: component.component,
       unit: component.unit,
