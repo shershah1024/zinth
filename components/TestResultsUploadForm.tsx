@@ -107,7 +107,7 @@ export function TestResultsUploadForm({ processFiles }: TestResultsUploadFormPro
         className="w-full py-3 text-lg"
         disabled={uploadedFiles.length === 0 || isLoading}
       >
-        {isLoading ? 'Processing...' : 'Analyze Images'}
+        {isLoading ? 'Processing...' : 'Upload'}
       </Button>
     </form>
   );
