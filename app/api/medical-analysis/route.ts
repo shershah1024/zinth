@@ -76,7 +76,7 @@ async function analyzeImages(images: string[], mimeType: string): Promise<Analys
 
 async function storeResult(result: AnalysisResult, publicUrl: string, pageNumber: number): Promise<void> {
   console.log(`[Result Storage] Storing result for page ${pageNumber}`);
-  const endpoint = result.imaging_description ? '/api/store/imaging-result' : '/api/store/test-result';
+  const endpoint = result.imaging_description ? '/api/store/imaging-result' : '/api/store/test-results';
 
   const formattedResult: AnalysisResult = {
     date: result.date || new Date().toISOString().split('T')[0],

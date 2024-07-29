@@ -18,17 +18,27 @@ interface AnthropicResponse {
   content: AnthropicResponseContent[];
 }
 
+interface RequestBody {
+  images: string[];
+  mimeType: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const requestBody = await request.json();
+    const requestBody: RequestBody = await request.json();
     console.log('Received request body keys:', Object.keys(requestBody));
 
-    if (!Array.isArray(requestBody) || requestBody.length === 0) {
-      console.error('Invalid input: content is missing, not an array, or empty');
+    if (!requestBody.images || !Array.isArray(requestBody.images) || requestBody.images.length === 0) {
+      console.error('Invalid input: images are missing, not an array, or empty');
       return NextResponse.json({ error: 'At least one image is required' }, { status: 400 });
     }
 
-    console.log(`Received request with ${requestBody.length} images`);
+    if (!requestBody.mimeType) {
+      console.error('Invalid input: mimeType is missing');
+      return NextResponse.json({ error: 'mimeType is required' }, { status: 400 });
+    }
+
+    console.log(`Received request with ${requestBody.images.length} images`);
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -72,17 +82,17 @@ export async function POST(request: NextRequest) {
             type: "string",
             description: "Date of the test or imaging, in YYYY-MM-DD format"
           },
-          },
+        },
         required: ["components"]
       }
     }];
 
-    const imageContent = requestBody.map(item => ({
+    const imageContent = requestBody.images.map((base64Image: string) => ({
       type: "image",
       source: {
         type: "base64",
-        media_type: item.mimeType,
-        data: item.base64Image
+        media_type: requestBody.mimeType,
+        data: base64Image
       }
     }));
 
