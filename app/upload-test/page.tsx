@@ -1,4 +1,4 @@
-// app/test-results-upload/page.tsx
+// app/upload-test/page.tsx
 'use client';
 import { NextPage } from 'next';
 import { TestResultsUploadForm } from '@/components/TestResultsUploadForm';
