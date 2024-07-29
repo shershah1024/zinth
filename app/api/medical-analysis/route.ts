@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AnalysisResult } from '@/types/medical';
+import { AnalysisResult, TestComponent } from '@/types/medical';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64image-jzfcn33k5q-uc.a.run.app/pdf-to-base64/';
@@ -37,33 +37,31 @@ async function convertPdfToImages(file: File): Promise<string[]> {
   return data.base64_images;
 }
 
-async function processFile(file: File): Promise<{ base64Image: string; mimeType: string; pageNumber: number }[]> {
+async function processFile(file: File): Promise<{ base64Images: string[]; mimeType: string; }> {
   console.log(`[File Processing] Processing file: ${file.name}, type: ${file.type}`);
   
   if (file.type === 'application/pdf') {
     const images = await convertPdfToImages(file);
-    return images.map((base64Image, index) => ({
-      base64Image,
-      mimeType: 'image/png',
-      pageNumber: index + 1
-    }));
+    return {
+      base64Images: images,
+      mimeType: 'image/png'
+    };
   } else {
     const fileBuffer = await file.arrayBuffer();
     const base64Image = Buffer.from(fileBuffer).toString('base64');
-    return [{
-      base64Image,
-      mimeType: file.type,
-      pageNumber: 1
-    }];
+    return {
+      base64Images: [base64Image],
+      mimeType: file.type
+    };
   }
 }
 
-async function analyzeImages(images: { base64Image: string; mimeType: string; pageNumber: number }[]): Promise<AnalysisResult[]> {
+async function analyzeImages(images: string[], mimeType: string): Promise<AnalysisResult[]> {
   console.log(`[Image Analysis] Analyzing ${images.length} images`);
   const analyzeResponse = await fetch(`${BASE_URL}/api/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(images)
+    body: JSON.stringify({ images, mimeType })
   });
   
   if (!analyzeResponse.ok) {
@@ -72,23 +70,41 @@ async function analyzeImages(images: { base64Image: string; mimeType: string; pa
   }
   
   const analysisResults: AnalysisResult[] = await analyzeResponse.json();
-  console.log("result is,", analysisResults)
+  console.log("[Image Analysis] Analysis results:", JSON.stringify(analysisResults, null, 2));
   return analysisResults;
 }
 
 async function storeResult(result: AnalysisResult, publicUrl: string, pageNumber: number): Promise<void> {
   console.log(`[Result Storage] Storing result for page ${pageNumber}`);
   const endpoint = result.imaging_description ? '/api/store/imaging-result' : '/api/store/test-result';
+
+  const formattedResult: AnalysisResult = {
+    date: result.date || new Date().toISOString().split('T')[0],
+    components: result.components.map((component: TestComponent) => ({
+      component: component.component,
+      value: component.value,
+      unit: component.unit,
+      normal_range_min: component.normal_range_min,
+      normal_range_max: component.normal_range_max,
+      normal_range_text: component.normal_range_text
+    })),
+    imaging_description: result.imaging_description,
+    descriptive_name: result.descriptive_name
+  };
+
   const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ result, publicUrl })
+    body: JSON.stringify({ result: formattedResult, publicUrl })
   });
   
   if (!storeResponse.ok) {
-    console.error(`[Result Storage] Failed with status ${storeResponse.status}`);
-    throw new Error(`Storage failed with status ${storeResponse.status}`);
+    const errorText = await storeResponse.text();
+    console.error(`[Result Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
+    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
   }
+
+  console.log(`[Result Storage] Successfully stored result for page ${pageNumber}`);
 }
 
 export async function POST(request: NextRequest) {
@@ -119,14 +135,14 @@ export async function POST(request: NextRequest) {
     const { publicUrl } = await uploadResponse.json();
     console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}`);
 
-    const processedImages = await processFile(file);
-    console.log(`[POST] File processed into ${processedImages.length} images`);
+    const { base64Images, mimeType } = await processFile(file);
+    console.log(`[POST] File processed into ${base64Images.length} images`);
 
-    const analysisResults = await analyzeImages(processedImages);
+    const analysisResults = await analyzeImages(base64Images, mimeType);
 
     // Store results
     await Promise.all(analysisResults.map((result, index) => 
-      storeResult(result, publicUrl, processedImages[index].pageNumber)
+      storeResult(result, publicUrl, index + 1)
     ));
 
     console.log('[POST] All processing completed successfully');
