@@ -13,3 +13,27 @@ export interface TestComponent {
     date?: string;
     descriptive_name?: string;
   }
+
+  export interface PrescriptionAnalysisResult {
+    prescription_date: string;
+    doctor_name?: string;
+    medicines: {
+      medicine: string;
+      daily_frequency: string;
+      before_after_food: string;
+      start_date?: string;
+      end_date?: string;
+      notes?: string;
+    }[];
+  }
+
+  export interface Medicine {
+    medicine: string;
+    daily_frequency: string;
+    before_after_food: string;
+    start_date?: string;
+    end_date?: string;
+    notes?: string;
+  }
+  
+  

@@ -1,41 +1,34 @@
-// app/upload-prescriptions/page.tsx
-import { Metadata } from 'next'
 import { PrescriptionUploadForm } from '@/components/PrescriptionUploadForm'
-import { redirect } from 'next/navigation'
+import { PrescriptionAnalysisResult } from '@/types/medical'
 
-export const metadata: Metadata = {
-  title: 'Upload Prescriptions',
-  description: 'Upload your prescription documents for processing',
-}
-
-async function uploadPrescriptions(formData: FormData) {
+async function uploadPrescription(formData: FormData): Promise<{ result: PrescriptionAnalysisResult; publicUrl: string }> {
   'use server'
 
-  // Process the files here
-  // For example, you might save them to a file system or cloud storage
-  // and then save the metadata to a database
+  const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/process-prescription`, {
+    method: 'POST',
+    body: formData
+  });
 
-  // This is a placeholder for your file processing logic
-  for (let i = 0; i < 5; i++) {
-    const file = formData.get(`file${i}`) as File | null
-    if (file) {
-      console.log(`Processing file: ${file.name}`)
-      // Add your file processing logic here
-      // For example:
-      // const contents = await file.arrayBuffer()
-      // await saveFileToStorage(file.name, contents)
-      // await saveMetadataToDatabase(file.name, file.size, file.type)
-    }
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || data.details || `Processing failed with status ${response.status}`);
   }
 
-  // Redirect to the prescriptions page after successful upload
-  redirect('/prescriptions')
+  if (!data.result || !data.publicUrl) {
+    throw new Error('Invalid response from server');
+  }
+
+  return {
+    result: data.result as PrescriptionAnalysisResult,
+    publicUrl: data.publicUrl
+  };
 }
 
-export default function UploadPrescriptionsPage() {
+export default function UploadPrescriptionPage() {
   return (
     <div className="container mx-auto px-4 py-8">
-      <PrescriptionUploadForm onSubmit={uploadPrescriptions} />
+      <PrescriptionUploadForm onSubmit={uploadPrescription} />
     </div>
   )
 }

@@ -1,67 +1,52 @@
 'use client'
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
-
-const MAX_FILES = 5;
-const ACCEPTED_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { AlertCircle, Upload, FileText, Link } from "lucide-react"
+import { PrescriptionAnalysisResult } from '@/types/medical'
 
 interface PrescriptionUploadFormProps {
-  onSubmit: (formData: FormData) => Promise<void>;
+  onSubmit: (formData: FormData) => Promise<{ result: PrescriptionAnalysisResult; publicUrl: string }>;
 }
 
 export function PrescriptionUploadForm({ onSubmit }: PrescriptionUploadFormProps) {
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<PrescriptionAnalysisResult | null>(null);
+  const [publicUrl, setPublicUrl] = useState<string | null>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files) {
-      const newFiles = Array.from(files).filter(file => {
-        if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-          setError(`File ${file.name} is not an accepted file type.`);
-          return false;
-        }
-        if (file.size > MAX_FILE_SIZE) {
-          setError(`File ${file.name} exceeds the maximum file size of 5MB.`);
-          return false;
-        }
-        return true;
-      });
-
-      if (uploadedFiles.length + newFiles.length <= MAX_FILES) {
-        setUploadedFiles(prevFiles => [...prevFiles, ...newFiles]);
-        setError(null);
-      } else {
-        setError(`You can only upload up to ${MAX_FILES} files.`);
-      }
+    if (files && files.length > 0) {
+      setFile(files[0]);
+      setError(null);
     }
-  };
-
-  const removeFile = (index: number) => {
-    setUploadedFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
-    setError(null);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
+    setResult(null);
+    setPublicUrl(null);
+
+    if (!file) {
+      setError('Please select a file to upload.');
+      setIsLoading(false);
+      return;
+    }
 
     const formData = new FormData();
-    uploadedFiles.forEach((file, index) => {
-      formData.append(`file${index}`, file);
-    });
+    formData.append('file', file);
 
     try {
-      await onSubmit(formData);
-      // Reset form after successful submission
-      setUploadedFiles([]);
+      const { result, publicUrl } = await onSubmit(formData);
+      setResult(result);
+      setPublicUrl(publicUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
@@ -70,55 +55,78 @@ export function PrescriptionUploadForm({ onSubmit }: PrescriptionUploadFormProps
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-4xl font-bold text-center text-gray-900 mb-12">Upload Your Prescriptions</h1>
-        <form onSubmit={handleSubmit} className="space-y-8 bg-white shadow-2xl rounded-2xl p-10">
-          <h2 className="text-3xl font-semibold text-gray-900 mb-6">Upload Prescriptions</h2>
-          
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold">Upload Prescription</CardTitle>
+        <CardDescription>Upload your prescription image or PDF.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <Alert variant="destructive">
-              <AlertCircle className="h-5 w-5" />
+              <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
           
-          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-            <Input
-              type="file"
-              onChange={handleFileUpload}
-              multiple
-              accept={ACCEPTED_FILE_TYPES.join(',')}
-              className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-            <p className="mt-3 text-sm text-gray-600">
-              Upload your prescription images or documents here. You can upload up to 5 files. Accepted formats: JPEG, PNG, PDF. Max file size: 5MB.
-            </p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-center w-full">
+              <label htmlFor="file-upload" className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <Upload className="w-10 h-10 mb-3 text-gray-400" />
+                  <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                  <p className="text-xs text-gray-500">JPEG, PNG, PDF (up to 10MB)</p>
+                </div>
+                <Input
+                  id="file-upload"
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  accept="image/jpeg,image/png,application/pdf"
+                />
+              </label>
+            </div>
           </div>
           
-          <div className="space-y-3">
-            {uploadedFiles.map((file, index) => (
-              <div key={index} className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <span className="text-sm font-medium text-gray-700">{file.name}</span>
-                <Button type="button" variant="destructive" size="sm" onClick={() => removeFile(index)}>
-                  Remove
-                </Button>
-              </div>
-            ))}
-          </div>
+          {file && (
+            <div className="flex items-center space-x-2 bg-gray-100 p-2 rounded">
+              <FileText className="h-5 w-5 text-gray-500" />
+              <span className="text-sm text-gray-700">{file.name}</span>
+            </div>
+          )}
           
           <Button 
             type="submit" 
-            className="w-full py-4 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
-            disabled={uploadedFiles.length === 0 || isLoading}
+            className="w-full py-6 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white" 
+            disabled={!file || isLoading}
           >
-            {isLoading ? 'Uploading...' : 'Upload Prescriptions'}
+            {isLoading ? 'Analyzing...' : 'Upload'}
           </Button>
+
+          {result && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Analysis Result</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="bg-gray-100 p-4 rounded overflow-auto text-sm">
+                  {JSON.stringify(result, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+
+          {publicUrl && (
+            <div className="flex items-center space-x-2">
+              <Link className="h-5 w-5 text-blue-600" />
+              <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                View Uploaded File
+              </a>
+            </div>
+          )}
         </form>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
-
-export default PrescriptionUploadForm;
