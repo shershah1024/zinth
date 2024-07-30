@@ -1,6 +1,7 @@
+// UploadPrescriptionPage.tsx
 import { PrescriptionUploadForm } from '@/components/PrescriptionUploadForm'
 import { PrescriptionAnalysisResult } from '@/types/medical'
-import { useRouter } from 'next/navigation'
+import UploadSuccessHandler from '@/components/UploadSuccesHandler'
 
 async function uploadPrescription(formData: FormData): Promise<{ result: PrescriptionAnalysisResult; publicUrl: string }> {
   'use server'
@@ -19,15 +20,10 @@ async function uploadPrescription(formData: FormData): Promise<{ result: Prescri
 }
 
 export default function UploadPrescriptionPage() {
-  const router = useRouter();
-
-  const handleUploadSuccess = () => {
-    router.push('/prescriptions');
-  };
-
   return (
     <div className="container mx-auto px-4 py-8">
-      <PrescriptionUploadForm onSubmit={uploadPrescription} onUploadSuccess={handleUploadSuccess} />
+      <PrescriptionUploadForm onSubmit={uploadPrescription} />
+      <UploadSuccessHandler />
     </div>
   )
 }

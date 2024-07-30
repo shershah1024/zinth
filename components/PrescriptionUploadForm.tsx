@@ -1,23 +1,35 @@
 'use client'
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { AlertCircle, Upload, FileText, Link } from "lucide-react"
+import { AlertCircle, Upload, FileText, Link, FileIcon } from "lucide-react"
 import { PrescriptionAnalysisResult } from '@/types/medical'
 
 interface PrescriptionUploadFormProps {
   onSubmit: (formData: FormData) => Promise<{ result: PrescriptionAnalysisResult; publicUrl: string }>;
-  onUploadSuccess: () => void;
 }
 
-export function PrescriptionUploadForm({ onSubmit, onUploadSuccess }: PrescriptionUploadFormProps) {
+export function PrescriptionUploadForm({ onSubmit }: PrescriptionUploadFormProps) {
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<PrescriptionAnalysisResult | null>(null);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setPreview(null);
+    }
+  }, [file]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -47,7 +59,7 @@ export function PrescriptionUploadForm({ onSubmit, onUploadSuccess }: Prescripti
       const { result, publicUrl } = await onSubmit(formData);
       setResult(result);
       setPublicUrl(publicUrl);
-      onUploadSuccess(); // Call the success callback after successful upload
+      window.dispatchEvent(new Event('uploadSuccess'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
@@ -73,12 +85,36 @@ export function PrescriptionUploadForm({ onSubmit, onUploadSuccess }: Prescripti
           
           <div className="space-y-2">
             <div className="flex items-center justify-center w-full">
-              <label htmlFor="file-upload" className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <Upload className="w-10 h-10 mb-3 text-gray-400" />
-                  <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                  <p className="text-xs text-gray-500">JPEG, PNG, PDF (up to 10MB)</p>
-                </div>
+              <label htmlFor="file-upload" className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 relative overflow-hidden">
+                {preview ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    {file?.type.startsWith('image/') ? (
+                      <img src={preview} alt="Preview" className="object-cover w-full h-full" />
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <FileIcon className="w-16 h-16 text-gray-400" />
+                        <p className="mt-2 text-sm text-gray-500">{file?.name}</p>
+                      </div>
+                    )}
+                    {isLoading && (
+                      <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
+                        <div className="relative w-24 h-24">
+                          <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-200 rounded-full"></div>
+                          <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-500 rounded-full animate-spin border-t-transparent"></div>
+                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-blue-500 font-bold text-sm">
+                            Analyzing
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <Upload className="w-10 h-10 mb-3 text-gray-400" />
+                    <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                    <p className="text-xs text-gray-500">JPEG, PNG, PDF (up to 10MB)</p>
+                  </div>
+                )}
                 <Input
                   id="file-upload"
                   type="file"
@@ -89,13 +125,6 @@ export function PrescriptionUploadForm({ onSubmit, onUploadSuccess }: Prescripti
               </label>
             </div>
           </div>
-          
-          {file && (
-            <div className="flex items-center space-x-2 bg-gray-100 p-2 rounded">
-              <FileText className="h-5 w-5 text-gray-500" />
-              <span className="text-sm text-gray-700">{file.name}</span>
-            </div>
-          )}
           
           <Button 
             type="submit" 
