@@ -1,5 +1,6 @@
 import { PrescriptionUploadForm } from '@/components/PrescriptionUploadForm'
 import { PrescriptionAnalysisResult } from '@/types/medical'
+import { useRouter } from 'next/navigation'
 
 async function uploadPrescription(formData: FormData): Promise<{ result: PrescriptionAnalysisResult; publicUrl: string }> {
   'use server'
@@ -9,26 +10,24 @@ async function uploadPrescription(formData: FormData): Promise<{ result: Prescri
     body: formData
   });
 
-  const data = await response.json();
-
   if (!response.ok) {
-    throw new Error(data.error || data.details || `Processing failed with status ${response.status}`);
+    const errorData = await response.json();
+    throw new Error(errorData.error || `Processing failed with status ${response.status}`);
   }
 
-  if (!data.result || !data.publicUrl) {
-    throw new Error('Invalid response from server');
-  }
-
-  return {
-    result: data.result as PrescriptionAnalysisResult,
-    publicUrl: data.publicUrl
-  };
+  return response.json();
 }
 
 export default function UploadPrescriptionPage() {
+  const router = useRouter();
+
+  const handleUploadSuccess = () => {
+    router.push('/prescriptions');
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <PrescriptionUploadForm onSubmit={uploadPrescription} />
+      <PrescriptionUploadForm onSubmit={uploadPrescription} onUploadSuccess={handleUploadSuccess} />
     </div>
   )
 }

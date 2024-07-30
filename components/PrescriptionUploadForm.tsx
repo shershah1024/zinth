@@ -4,15 +4,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
 import { AlertCircle, Upload, FileText, Link } from "lucide-react"
 import { PrescriptionAnalysisResult } from '@/types/medical'
 
 interface PrescriptionUploadFormProps {
   onSubmit: (formData: FormData) => Promise<{ result: PrescriptionAnalysisResult; publicUrl: string }>;
+  onUploadSuccess: () => void;
 }
 
-export function PrescriptionUploadForm({ onSubmit }: PrescriptionUploadFormProps) {
+export function PrescriptionUploadForm({ onSubmit, onUploadSuccess }: PrescriptionUploadFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +47,7 @@ export function PrescriptionUploadForm({ onSubmit }: PrescriptionUploadFormProps
       const { result, publicUrl } = await onSubmit(formData);
       setResult(result);
       setPublicUrl(publicUrl);
+      onUploadSuccess(); // Call the success callback after successful upload
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {

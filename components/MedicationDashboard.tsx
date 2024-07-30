@@ -1,5 +1,3 @@
-// components/MedicationDashboard.tsx
-
 'use client'
 
 import React, { useState } from 'react';
@@ -24,6 +22,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
 }) => {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [showPastMedications, setShowPastMedications] = useState(false);
+  const [expandedMedication, setExpandedMedication] = useState<number | null>(null);
 
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
@@ -106,6 +105,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6">
       <h1 className="text-3xl font-bold">Medication Dashboard</h1>
+      <p className="text-sm text-gray-600">Click on a medication name to view its monthly streak data.</p>
 
       <Card>
         <CardHeader>
@@ -117,26 +117,28 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
           ) : (
             currentMedications.map((med) => (
               <div key={med.id} className="mb-6 last:mb-0">
-                <h3 className="text-lg font-medium mb-2">{med.medicine}</h3>
+                <h3 
+                  className="text-lg font-medium mb-2 cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => setExpandedMedication(expandedMedication === med.id ? null : med.id)}
+                >
+                  {med.medicine}
+                </h3>
                 <p className="text-sm text-gray-600 mb-2">{med.before_after_food}</p>
                 {renderCheckbox(med, format(new Date(), 'yyyy-MM-dd'))}
-                <Accordion type="single" collapsible className="w-full mt-4">
-                  <AccordionItem value={`med-${med.id}`}>
-                    <AccordionTrigger>View Monthly Streak</AccordionTrigger>
-                    <AccordionContent>
-                      <div className="flex justify-between items-center mb-4">
-                        <Button onClick={handlePrevMonth} variant="outline" size="icon">
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <span className="text-lg font-medium">{format(currentMonth, 'MMMM yyyy')}</span>
-                        <Button onClick={handleNextMonth} variant="outline" size="icon">
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {renderStreak(med)}
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                {expandedMedication === med.id && (
+                  <div className="mt-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <Button onClick={handlePrevMonth} variant="outline" size="icon">
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-lg font-medium">{format(currentMonth, 'MMMM yyyy')}</span>
+                      <Button onClick={handleNextMonth} variant="outline" size="icon">
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {renderStreak(med)}
+                  </div>
+                )}
               </div>
             ))
           )}
