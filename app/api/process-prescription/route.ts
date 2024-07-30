@@ -9,19 +9,27 @@ if (!BASE_URL) {
   throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');
 }
 
+interface MedicineTimes {
+  morning: string;
+  afternoon: string;
+  evening: string;
+  night: string;
+}
+
 interface Medicine {
   medicine: string;
-  daily_frequency: string;
   before_after_food: string;
-  start_date: string;
-  end_date: string;
-  notes: string;
+  start_date?: string;
+  end_date?: string;
+  notes?: string;
+  medicine_times: MedicineTimes;
 }
 
 interface PrescriptionAnalysisResult {
   prescription_date: string;
   doctor: string;
   medicines: Medicine[];
+  public_url: string;
 }
 
 async function convertPdfToImages(file: File): Promise<string[]> {
@@ -96,7 +104,7 @@ async function analyzePrescription(images: string[], mimeType: string): Promise<
   }
 }
 
-async function storePrescription(results: PrescriptionAnalysisResult[], publicUrl: string): Promise<void> {
+async function storePrescription(results: PrescriptionAnalysisResult[]): Promise<void> {
   console.log(`[Prescription Storage] Storing prescriptions`);
   const endpoint = '/api/store-prescription';
 
@@ -106,16 +114,16 @@ async function storePrescription(results: PrescriptionAnalysisResult[], publicUr
   const prescriptionData = {
     prescription: {
       prescription_date: result.prescription_date,
-      doctor_name: result.doctor,
+      doctor: result.doctor,
       medicines: result.medicines.map(medicine => ({
         medicine: medicine.medicine,
-        daily_frequency: medicine.daily_frequency,
         before_after_food: medicine.before_after_food,
         start_date: medicine.start_date,
         end_date: medicine.end_date,
-        notes: medicine.notes
+        notes: medicine.notes,
+        medicine_times: medicine.medicine_times
       })),
-      public_url: publicUrl
+      public_url: result.public_url
     }
   };
 
@@ -169,8 +177,11 @@ export async function POST(request: NextRequest) {
 
     const analysisResults = await analyzePrescription(base64Images, mimeType);
 
+    // Ensure public_url is set in the analysis results
+    analysisResults[0].public_url = publicUrl;
+
     // Store results
-    await storePrescription(analysisResults, publicUrl);
+    await storePrescription(analysisResults);
 
     console.log('[POST] All processing completed successfully');
     return NextResponse.json({ results: analysisResults, publicUrl });
