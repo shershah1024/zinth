@@ -4,44 +4,19 @@
 
 import { useState, useEffect } from 'react';
 import MedicationDashboard from './MedicationDashboard';
-
-type Timing = 'morning' | 'afternoon' | 'evening' | 'night';
-
-interface Medication {
-  id: number;
-  medicine: string;
-  before_after_food: string;
-  start_date: string;
-  end_date: string;
-  streak: Record<string, Record<Timing, boolean>>;
-  morning: boolean;
-  afternoon: boolean;
-  evening: boolean;
-  night: boolean;
-}
-
-interface PastMedication {
-  id: number;
-  medicine: string;
-  start_date: string;
-  end_date: string;
-  morning: boolean;
-  afternoon: boolean;
-  evening: boolean;
-  night: boolean;
-}
+import { StreakMedication, StreakPastMedication, StreakTiming, StreakTimingStatus, TimingValue } from '@/types/StreakTypes';
 
 interface MedicationDashboardWrapperProps {
-  initialCurrentMedications: Medication[];
-  initialPastMedications: PastMedication[];
+  initialCurrentMedications: StreakMedication[];
+  initialPastMedications: StreakPastMedication[];
 }
 
 export default function MedicationDashboardWrapper({
   initialCurrentMedications,
   initialPastMedications
 }: MedicationDashboardWrapperProps) {
-  const [currentMedications, setCurrentMedications] = useState<Medication[] | null>(null);
-  const [pastMedications, setPastMedications] = useState<PastMedication[] | null>(null);
+  const [currentMedications, setCurrentMedications] = useState<StreakMedication[] | null>(null);
+  const [pastMedications, setPastMedications] = useState<StreakPastMedication[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,14 +24,25 @@ export default function MedicationDashboardWrapper({
     setPastMedications(initialPastMedications);
   }, [initialCurrentMedications, initialPastMedications]);
 
-  const handleUpdateAdherence = async (medicationId: number, date: string, timing: Timing, taken: boolean) => {
+  const handleUpdateAdherence = async (medicationId: number, date: string, timing: StreakTiming, taken: boolean) => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/update-adherence`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prescriptionId: medicationId, date, timing, taken }),
+        body: JSON.stringify({ 
+          prescriptionId: medicationId, 
+          date, 
+          timing, 
+          status: taken ? StreakTimingStatus.Taken : StreakTimingStatus.NotTaken 
+        }),
       });
-      if (!response.ok) throw new Error('Failed to update adherence');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update adherence');
+      }
+      
+      const { updatedStreak } = await response.json();
       
       // Optimistically update the UI
       setCurrentMedications(prevMeds => 
@@ -64,13 +50,13 @@ export default function MedicationDashboardWrapper({
           med.id === medicationId 
             ? { 
                 ...med, 
-                streak: { 
+                streak: {
                   ...med.streak,
                   [date]: {
                     ...med.streak[date],
-                    [timing]: taken
+                    [timing]: taken ? StreakTimingStatus.Taken : StreakTimingStatus.NotTaken
                   }
-                } 
+                }
               }
             : med
         ) ?? null

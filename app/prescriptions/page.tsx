@@ -1,30 +1,31 @@
+// page.tsx
+
 import { Suspense } from 'react';
 import MedicationDashboardWrapper from '@/components/MedicationDashboardWrapper';
+import { StreakMedication, StreakPastMedication, StreakTiming, StreakTimingStatus, TimingValue } from '@/types/StreakTypes';
 
-type Timing = 'morning' | 'afternoon' | 'evening' | 'night';
-
-interface Medication {
+interface RawMedication {
   id: number;
   medicine: string;
   before_after_food: string;
   start_date: string;
   end_date: string;
-  streak: Record<string, Record<Timing, boolean>>;
-  morning: boolean;
-  afternoon: boolean;
-  evening: boolean;
-  night: boolean;
+  streak: Record<string, Partial<Record<StreakTiming, boolean>>>;
+  morning: TimingValue;
+  afternoon: TimingValue;
+  evening: TimingValue;
+  night: TimingValue;
 }
 
-interface PastMedication {
+interface RawPastMedication {
   id: number;
   medicine: string;
   start_date: string;
   end_date: string;
-  morning: boolean;
-  afternoon: boolean;
-  evening: boolean;
-  night: boolean;
+  morning: TimingValue;
+  afternoon: TimingValue;
+  evening: TimingValue;
+  night: TimingValue;
 }
 
 async function fetchMedicationData() {
@@ -36,8 +37,45 @@ async function fetchMedicationData() {
       throw new Error('Failed to fetch medication data');
     }
 
-    const currentMedications: Medication[] = await currentMedicationsRes.json();
-    const pastMedications: PastMedication[] = await pastMedicationsRes.json();
+    const currentMedicationsRaw: RawMedication[] = await currentMedicationsRes.json();
+    const pastMedicationsRaw: RawPastMedication[] = await pastMedicationsRes.json();
+
+    // Convert boolean values to StreakTimingStatus
+    const currentMedications: StreakMedication[] = currentMedicationsRaw.map(med => ({
+      id: med.id,
+      medicine: med.medicine,
+      before_after_food: med.before_after_food,
+      start_date: med.start_date,
+      end_date: med.end_date,
+      streak: Object.entries(med.streak).reduce((acc, [date, timings]) => {
+        acc[date] = Object.entries(timings).reduce((timingAcc, [timing, value]) => {
+          if (med[timing as StreakTiming] === 'true') {
+            timingAcc[timing as StreakTiming] = value ? StreakTimingStatus.Taken : StreakTimingStatus.NotTaken;
+          }
+          return timingAcc;
+        }, {} as Partial<Record<StreakTiming, StreakTimingStatus>>);
+        return acc;
+      }, {} as Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>),
+      timings: {
+        morning: med.morning,
+        afternoon: med.afternoon,
+        evening: med.evening,
+        night: med.night
+      }
+    }));
+
+    const pastMedications: StreakPastMedication[] = pastMedicationsRaw.map(med => ({
+      id: med.id,
+      medicine: med.medicine,
+      start_date: med.start_date,
+      end_date: med.end_date,
+      timings: {
+        morning: med.morning,
+        afternoon: med.afternoon,
+        evening: med.evening,
+        night: med.night
+      }
+    }));
 
     return { 
       currentMedications, 

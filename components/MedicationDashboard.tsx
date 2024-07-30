@@ -5,37 +5,16 @@
 import React, { useState } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
-
-type Timing = 'morning' | 'afternoon' | 'evening' | 'night';
-
-interface Medication {
-  id: number;
-  medicine: string;
-  before_after_food: string;
-  start_date: string;
-  end_date: string;
-  streak: Record<string, Record<Timing, boolean>>;
-  morning: boolean;
-  afternoon: boolean;
-  evening: boolean;
-  night: boolean;
-}
-
-interface PastMedication {
-  id: number;
-  medicine: string;
-  start_date: string;
-  end_date: string;
-  morning: boolean;
-  afternoon: boolean;
-  evening: boolean;
-  night: boolean;
-}
+import { StreakMedication, StreakPastMedication, StreakTiming, StreakTimingStatus, TimingValue } from '@/types/StreakTypes';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface MedicationDashboardProps {
-  currentMedications: Medication[] | null;
-  pastMedications: PastMedication[] | null;
-  onUpdateAdherence: (medicationId: number, date: string, timing: Timing, taken: boolean) => void;
+  currentMedications: StreakMedication[] | null;
+  pastMedications: StreakPastMedication[] | null;
+  onUpdateAdherence: (medicationId: number, date: string, timing: StreakTiming, taken: boolean) => void;
 }
 
 const MedicationDashboard: React.FC<MedicationDashboardProps> = ({ 
@@ -44,67 +23,71 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
   onUpdateAdherence 
 }) => {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  const [expandedMedication, setExpandedMedication] = useState<number | null>(null);
-  const [showPastMedications, setShowPastMedications] = useState<boolean>(false);
+  const [showPastMedications, setShowPastMedications] = useState(false);
 
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
-  const getActiveTimes = (medication: Medication | PastMedication): Timing[] => {
-    return ['morning', 'afternoon', 'evening', 'night'].filter(time => medication[time as Timing]) as Timing[];
+  const getActiveTimings = (timings: Partial<Record<StreakTiming, TimingValue>>): StreakTiming[] => {
+    return (Object.entries(timings) as [StreakTiming, TimingValue][])
+      .filter(([_, value]) => value === 'true')
+      .map(([timing, _]) => timing);
   };
 
-  const renderCheckbox = (medication: Medication, date: string) => {
-    const activeTimes = getActiveTimes(medication);
+  const renderCheckbox = (medication: StreakMedication, date: string) => {
+    const activeTimings = getActiveTimings(medication.timings);
     return (
-      <div className="flex flex-wrap">
-        {activeTimes.map(timing => {
-          const isChecked = medication.streak[date]?.[timing] ?? false;
+      <div className="flex flex-wrap gap-4">
+        {activeTimings.map((timing) => {
+          const isChecked = medication.streak[date]?.[timing] === StreakTimingStatus.Taken;
           return (
-            <label key={timing} className="inline-flex items-center mr-4">
-              <input
-                type="checkbox"
-                className="form-checkbox h-5 w-5 text-blue-600"
+            <div key={timing} className="flex items-center space-x-2">
+              <Checkbox
+                id={`${medication.id}-${timing}`}
                 checked={isChecked}
-                onChange={() => onUpdateAdherence(medication.id, date, timing, !isChecked)}
+                onCheckedChange={() => onUpdateAdherence(medication.id, date, timing, !isChecked)}
               />
-              <span className="ml-2 capitalize">{timing}</span>
-            </label>
+              <label
+                htmlFor={`${medication.id}-${timing}`}
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                {timing}
+              </label>
+            </div>
           );
         })}
       </div>
     );
   };
 
-  const renderStreak = (medication: Medication) => {
+  const renderStreak = (medication: StreakMedication) => {
     const days = eachDayOfInterval({
       start: startOfMonth(currentMonth),
       end: endOfMonth(currentMonth)
     });
-
-    const activeTimes = getActiveTimes(medication);
+    const activeTimings = getActiveTimings(medication.timings);
 
     return (
-      <div className="grid grid-cols-7 gap-4">
+      <div className="grid grid-cols-7 gap-2 text-center">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="text-center font-bold">{day}</div>
+          <div key={day} className="font-bold">{day}</div>
         ))}
         {days.map((day) => {
           const date = format(day, 'yyyy-MM-dd');
           return (
             <div key={date} className="flex flex-col items-center">
-              <div className="mb-1">{format(day, 'd')}</div>
-              <div className="flex flex-col gap-1">
-                {activeTimes.map((timing) => {
-                  const taken = medication.streak[date]?.[timing];
+              <div className="text-sm">{format(day, 'd')}</div>
+              <div className="flex flex-col gap-1 mt-1">
+                {activeTimings.map((timing) => {
+                  const status = medication.streak[date]?.[timing];
                   let bgColor = 'bg-gray-200';
-                  if (taken === true) bgColor = 'bg-green-500';
-                  if (taken === false) bgColor = 'bg-red-500';
+                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-green-500';
+                  if (status === StreakTimingStatus.NotTaken) bgColor = 'bg-red-500';
                   return (
                     <div
                       key={`${date}-${timing}`}
-                      className={`w-4 h-4 rounded-full ${bgColor}`}
-                      title={`${timing}: ${taken ? 'Taken' : 'Not taken'}`}
+                      className={`w-3 h-3 rounded-full ${bgColor}`}
+                      title={`${timing}: ${status === StreakTimingStatus.Taken ? 'Taken' : 'Not taken'}`}
                     />
                   );
                 })}
@@ -121,68 +104,82 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Medication Dashboard</h1>
+    <div className="max-w-4xl mx-auto p-4 space-y-6">
+      <h1 className="text-3xl font-bold">Medication Dashboard</h1>
 
-      <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Current Medications</h2>
-        {currentMedications.length === 0 ? (
-          <p>No current medications.</p>
-        ) : (
-          currentMedications.map((med) => (
-            <div key={med.id} className="mb-4 p-4 border rounded">
-              <button 
-                className="text-lg font-medium mb-2 hover:text-blue-600 transition-colors"
-                onClick={() => setExpandedMedication(expandedMedication === med.id ? null : med.id)}
-              >
-                {med.medicine}
-              </button>
-              <p className="text-sm text-gray-600 mb-2">{med.before_after_food}</p>
-              {renderCheckbox(med, format(new Date(), 'yyyy-MM-dd'))}
-              {expandedMedication === med.id && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-medium mb-2">Monthly Streak</h3>
-                  <div className="flex justify-between items-center mb-4">
-                    <button onClick={handlePrevMonth} className="p-2"><ChevronLeft /></button>
-                    <span className="text-lg font-medium">{format(currentMonth, 'MMMM yyyy')}</span>
-                    <button onClick={handleNextMonth} className="p-2"><ChevronRight /></button>
-                  </div>
-                  {renderStreak(med)}
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Current Medications</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {currentMedications.length === 0 ? (
+            <p>No current medications.</p>
+          ) : (
+            currentMedications.map((med) => (
+              <div key={med.id} className="mb-6 last:mb-0">
+                <h3 className="text-lg font-medium mb-2">{med.medicine}</h3>
+                <p className="text-sm text-gray-600 mb-2">{med.before_after_food}</p>
+                {renderCheckbox(med, format(new Date(), 'yyyy-MM-dd'))}
+                <Accordion type="single" collapsible className="w-full mt-4">
+                  <AccordionItem value={`med-${med.id}`}>
+                    <AccordionTrigger>View Monthly Streak</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="flex justify-between items-center mb-4">
+                        <Button onClick={handlePrevMonth} variant="outline" size="icon">
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-lg font-medium">{format(currentMonth, 'MMMM yyyy')}</span>
+                        <Button onClick={handleNextMonth} variant="outline" size="icon">
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {renderStreak(med)}
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="bg-white shadow rounded-lg p-6">
-        <button
-          className="flex items-center justify-between w-full text-left"
-          onClick={() => setShowPastMedications(!showPastMedications)}
-        >
-          <h2 className="text-xl font-semibold">Past Medications</h2>
-          {showPastMedications ? <ChevronUp /> : <ChevronDown />}
-        </button>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Button
+              onClick={() => setShowPastMedications(!showPastMedications)}
+              variant="ghost"
+              className="w-full justify-between"
+            >
+              Past Medications
+              {showPastMedications ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </CardTitle>
+        </CardHeader>
         {showPastMedications && (
-          <div className="mt-4">
+          <CardContent>
             {pastMedications.length === 0 ? (
               <p>No past medications.</p>
             ) : (
-              pastMedications.map((med) => (
-                <div key={med.id} className="mb-4 p-4 border rounded">
-                  <h3 className="text-lg font-medium">{med.medicine}</h3>
-                  <p className="text-sm text-gray-600">
-                    Taken from {med.start_date} to {med.end_date}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Timing: {getActiveTimes(med).join(', ')}
-                  </p>
-                </div>
-              ))
+              <Accordion type="single" collapsible className="w-full">
+                {pastMedications.map((med) => (
+                  <AccordionItem key={med.id} value={`past-med-${med.id}`}>
+                    <AccordionTrigger>{med.medicine}</AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-sm text-gray-600">
+                        Taken from {med.start_date} to {med.end_date}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Timing: {getActiveTimings(med.timings).join(', ')}
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
             )}
-          </div>
+          </CardContent>
         )}
-      </div>
+      </Card>
     </div>
   );
 };
