@@ -12,37 +12,52 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export async function POST(request: NextRequest) {
-  console.log('[Supabase Upload] Received request for signed URL');
+  console.log('[Supabase Upload] Received request for file upload');
   try {
-    const { filename, contentType, size } = await request.json();
-    console.log(`[Supabase Upload] File details - Name: ${filename}, Type: ${contentType}, Size: ${size}`);
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
 
-    if (!filename || !contentType) {
-      console.error('[Supabase Upload] Missing filename or contentType');
-      return NextResponse.json({ error: 'Missing filename or contentType' }, { status: 400 });
+    if (!file) {
+      console.error('[Supabase Upload] No file provided');
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    const fileName = `${Date.now()}_${filename}`;
+    const fileName = `${Date.now()}_${file.name}`;
     console.log(`[Supabase Upload] Generated filename: ${fileName}`);
 
+    // Upload the file
     const { data, error } = await supabase.storage
       .from('pdfs')
-      .createSignedUploadUrl(fileName);
+      .upload(fileName, file);
 
     if (error) {
-      console.error('[Supabase Upload] Error creating signed URL:', error);
-      return NextResponse.json({ error: `Error creating signed URL: ${error.message}` }, { status: 500 });
+      console.error('[Supabase Upload] Error uploading file:', error);
+      return NextResponse.json({ error: `Error uploading file: ${error.message}` }, { status: 500 });
     }
 
     if (!data) {
-      console.error('[Supabase Upload] No data returned from createSignedUploadUrl');
-      return NextResponse.json({ error: 'No data returned from createSignedUploadUrl' }, { status: 500 });
+      console.error('[Supabase Upload] No data returned from upload');
+      return NextResponse.json({ error: 'No data returned from upload' }, { status: 500 });
     }
 
-    console.log('[Supabase Upload] Successfully created signed URL');
-    return NextResponse.json(data);
+    // Generate public URL
+    const { data: publicUrlData } = supabase.storage
+      .from('pdfs')
+      .getPublicUrl(data.path);
+
+    if (!publicUrlData) {
+      console.error('[Supabase Upload] Error generating public URL: No data returned');
+      return NextResponse.json({ error: 'Error generating public URL: No data returned' }, { status: 500 });
+    }
+
+    console.log('[Supabase Upload] Successfully uploaded file and generated public URL');
+    return NextResponse.json({ 
+      success: true, 
+      path: data.path,
+      publicUrl: publicUrlData.publicUrl
+    });
   } catch (error) {
     console.error('[Supabase Upload] Unexpected error:', error);
-    return NextResponse.json({ error: 'Unexpected error occurred' }, { status: 500 });
+    return NextResponse.json({ error: 'Unexpected error occurred', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }

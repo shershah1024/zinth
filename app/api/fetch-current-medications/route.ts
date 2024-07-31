@@ -6,7 +6,6 @@ import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } }
 );
 
 const STATIC_PATIENT_ID = '919885842349';
@@ -20,8 +19,11 @@ export async function GET() {
       .eq('patient_number', STATIC_PATIENT_ID)
       .gte('end_date', today)
       .order('start_date', { ascending: false });
-
+    
     if (currentError) throw currentError;
+    console.log('Current Medications:', currentMeds);
+
+
 
     // Fetch streak data for each medication
     const streakPromises = currentMeds.map(async (med) => {

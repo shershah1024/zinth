@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     // Upload file
     console.log('[POST] Uploading file');
-    const uploadResponse = await fetch(`${BASE_URL}/api/upload`, {
+    const uploadResponse = await fetch(`${BASE_URL}/api/upload-file-supabase`, {
       method: 'POST',
       body: formData
     });
