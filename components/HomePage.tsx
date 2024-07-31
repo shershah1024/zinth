@@ -66,7 +66,7 @@ const HomePage: React.FC = () => {
           </motion.div>
         </div>
 
-        <h2 className="text-3xl font-bold text-center text-gray-800 mb-12">Features that Empower Your Health Management</h2>
+        
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
           <FeatureCard

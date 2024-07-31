@@ -5,16 +5,16 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Activity, X, Search, AlertCircle } from 'lucide-react';
 
-// Define types for our data structures
+// Updated types to allow string or number for values
 interface HistoryRecord {
   date: string;
-  value: number;
+  value: number | string;
 }
 
 interface ProcessedTest {
   id: string;
   name: string;
-  latestValue: number;
+  latestValue: number | string;
   latestDate: string;
   unit: string;
   normalRange: string;
@@ -40,9 +40,18 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
   const closeModal = () => setSelectedElement(null);
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(event.target.value);
 
-  const isAbnormal = (value: number, normalRange: string): boolean => {
+  const isAbnormal = (value: number | string, normalRange: string): boolean => {
+    const numericValue = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(numericValue)) return false; // Handle non-numeric strings
     const [min, max] = normalRange.split('-').map(Number);
-    return value < min || value > max;
+    return numericValue < min || numericValue > max;
+  };
+
+  const formatValue = (value: number | string): string => {
+    if (typeof value === 'number') {
+      return value.toFixed(2);
+    }
+    return value;
   };
 
   const TestCard: React.FC<{ element: ProcessedTest }> = ({ element }) => {
@@ -63,7 +72,7 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
           </CardHeader>
           <CardContent className="pt-4">
             <p className={`text-3xl font-bold ${abnormal ? 'text-red-600' : 'text-green-600'}`}>
-              {element.latestValue} 
+              {formatValue(element.latestValue)} 
               <span className="text-sm font-normal text-gray-500 ml-1">{element.unit}</span>
             </p>
             <p className="text-sm text-gray-600 mt-2">Latest: {element.latestDate}</p>
@@ -116,7 +125,7 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
                         <tr key={index} className="border-t border-gray-200">
                           <td className="py-3 text-sm">{record.date}</td>
                           <td className={`py-3 text-sm ${isAbnormal(record.value, selectedElement.normalRange) ? 'text-red-600 font-semibold' : 'text-green-600'}`}>
-                            {record.value} {selectedElement.unit}
+                            {formatValue(record.value)} {selectedElement.unit}
                           </td>
                         </tr>
                       ))}
@@ -128,7 +137,10 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
                 <h4 className="text-lg font-semibold mb-3">Trend Visualization</h4>
                 <div className="bg-white rounded-lg p-4 h-80 border border-gray-200">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={selectedElement.history}>
+                    <LineChart data={selectedElement.history.map(record => ({
+                      ...record,
+                      value: typeof record.value === 'string' ? parseFloat(record.value) : record.value
+                    }))}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
