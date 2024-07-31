@@ -1,5 +1,3 @@
-// page.tsx
-
 import { Suspense } from 'react';
 import MedicationDashboardWrapper from '@/components/MedicationDashboardWrapper';
 import { StreakMedication, StreakPastMedication, StreakTiming, StreakTimingStatus, TimingValue } from '@/types/StreakTypes';
@@ -40,7 +38,6 @@ async function fetchMedicationData() {
     const currentMedicationsRaw: RawMedication[] = await currentMedicationsRes.json();
     const pastMedicationsRaw: RawPastMedication[] = await pastMedicationsRes.json();
 
-    // Convert boolean values to StreakTimingStatus
     const currentMedications: StreakMedication[] = currentMedicationsRaw.map(med => ({
       id: med.id,
       medicine: med.medicine,
@@ -49,18 +46,16 @@ async function fetchMedicationData() {
       end_date: med.end_date,
       streak: Object.entries(med.streak).reduce((acc, [date, timings]) => {
         acc[date] = Object.entries(timings).reduce((timingAcc, [timing, value]) => {
-          if (med[timing as StreakTiming] === 'true') {
-            timingAcc[timing as StreakTiming] = value ? StreakTimingStatus.Taken : StreakTimingStatus.NotTaken;
-          }
+          timingAcc[timing as StreakTiming] = value ? StreakTimingStatus.Taken : StreakTimingStatus.NotTaken;
           return timingAcc;
         }, {} as Partial<Record<StreakTiming, StreakTimingStatus>>);
         return acc;
       }, {} as Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>),
       timings: {
-        morning: med.morning,
-        afternoon: med.afternoon,
-        evening: med.evening,
-        night: med.night
+        Morning: med.morning,
+        Afternoon: med.afternoon,
+        Evening: med.evening,
+        Night: med.night
       }
     }));
 
@@ -70,10 +65,10 @@ async function fetchMedicationData() {
       start_date: med.start_date,
       end_date: med.end_date,
       timings: {
-        morning: med.morning,
-        afternoon: med.afternoon,
-        evening: med.evening,
-        night: med.night
+        Morning: med.morning,
+        Afternoon: med.afternoon,
+        Evening: med.evening,
+        Night: med.night
       }
     }));
 

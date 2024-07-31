@@ -1,7 +1,34 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import MedicationDashboard from './MedicationDashboard';
-import { StreakMedication, StreakPastMedication, StreakTiming, StreakTimingStatus, TimingValue } from '@/types/StreakTypes';
+
+// Define the types more explicitly
+type StreakTiming = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+type TimingValue = 'true' | 'false';
+
+enum StreakTimingStatus {
+  Taken = 'Taken',
+  NotTaken = 'NotTaken'
+}
+
+interface StreakMedication {
+  id: number;
+  medicine: string;
+  before_after_food: string;
+  start_date: string;
+  end_date: string;
+  timings: Record<StreakTiming, TimingValue>;
+  streak: Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>;
+}
+
+interface StreakPastMedication {
+  id: number;
+  medicine: string;
+  start_date: string;
+  end_date: string;
+  timings: Record<StreakTiming, TimingValue>;
+}
 
 interface MedicationDashboardWrapperProps {
   initialCurrentMedications: StreakMedication[];
@@ -17,46 +44,44 @@ export default function MedicationDashboardWrapper({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Consolidate current medications
-    const consolidatedCurrentMeds = initialCurrentMedications.reduce((acc, med) => {
-      const existingMed = acc.find(m => m.medicine === med.medicine);
-      if (existingMed) {
-        // Merge streaks and timings
-        existingMed.streak = { ...existingMed.streak, ...med.streak };
-        existingMed.timings = {
-          morning: existingMed.timings.morning === 'true' || med.timings.morning === 'true' ? 'true' : 'false',
-          afternoon: existingMed.timings.afternoon === 'true' || med.timings.afternoon === 'true' ? 'true' : 'false',
-          evening: existingMed.timings.evening === 'true' || med.timings.evening === 'true' ? 'true' : 'false',
-          night: existingMed.timings.night === 'true' || med.timings.night === 'true' ? 'true' : 'false',
-        };
-        // Update start and end dates if necessary
-        existingMed.start_date = new Date(existingMed.start_date) < new Date(med.start_date) ? existingMed.start_date : med.start_date;
-        existingMed.end_date = new Date(existingMed.end_date) > new Date(med.end_date) ? existingMed.end_date : med.end_date;
-      } else {
-        acc.push({ ...med });
-      }
-      return acc;
-    }, [] as StreakMedication[]);
+    const consolidateCurrentMedications = (medications: StreakMedication[]): StreakMedication[] => {
+      return medications.reduce((acc, med) => {
+        const existingMed = acc.find(m => m.medicine === med.medicine);
+        if (existingMed) {
+          existingMed.streak = { ...existingMed.streak, ...med.streak };
+          existingMed.timings = {
+            Morning: existingMed.timings.Morning === 'true' || med.timings.Morning === 'true' ? 'true' : 'false',
+            Afternoon: existingMed.timings.Afternoon === 'true' || med.timings.Afternoon === 'true' ? 'true' : 'false',
+            Evening: existingMed.timings.Evening === 'true' || med.timings.Evening === 'true' ? 'true' : 'false',
+            Night: existingMed.timings.Night === 'true' || med.timings.Night === 'true' ? 'true' : 'false',
+          };
+          existingMed.start_date = new Date(existingMed.start_date) < new Date(med.start_date) ? existingMed.start_date : med.start_date;
+          existingMed.end_date = new Date(existingMed.end_date) > new Date(med.end_date) ? existingMed.end_date : med.end_date;
+        } else {
+          acc.push({ ...med });
+        }
+        return acc;
+      }, [] as StreakMedication[]);
+    };
 
-    setCurrentMedications(consolidatedCurrentMeds);
+    const consolidatePastMedications = (medications: StreakPastMedication[]): StreakPastMedication[] => {
+      return medications.reduce((acc, med) => {
+        const existingMed = acc.find(m => m.medicine === med.medicine);
+        if (existingMed) {
+          existingMed.start_date = new Date(existingMed.start_date) < new Date(med.start_date) ? existingMed.start_date : med.start_date;
+          existingMed.end_date = new Date(existingMed.end_date) > new Date(med.end_date) ? existingMed.end_date : med.end_date;
+        } else {
+          acc.push({ ...med });
+        }
+        return acc;
+      }, [] as StreakPastMedication[]);
+    };
 
-    // Consolidate past medications
-    const consolidatedPastMeds = initialPastMedications.reduce((acc, med) => {
-      const existingMed = acc.find(m => m.medicine === med.medicine);
-      if (existingMed) {
-        // Update start and end dates if necessary
-        existingMed.start_date = new Date(existingMed.start_date) < new Date(med.start_date) ? existingMed.start_date : med.start_date;
-        existingMed.end_date = new Date(existingMed.end_date) > new Date(med.end_date) ? existingMed.end_date : med.end_date;
-      } else {
-        acc.push({ ...med });
-      }
-      return acc;
-    }, [] as StreakPastMedication[]);
-
-    setPastMedications(consolidatedPastMeds);
+    setCurrentMedications(consolidateCurrentMedications(initialCurrentMedications));
+    setPastMedications(consolidatePastMedications(initialPastMedications));
   }, [initialCurrentMedications, initialPastMedications]);
 
-  const handleUpdateAdherence = async (medicationId: number, date: string, timing: StreakTiming, taken: boolean) => {
+  const handleUpdateAdherence = useCallback(async (medicationId: number, date: string, timing: StreakTiming, taken: boolean) => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/update-adherence`, {
         method: 'POST',
@@ -76,7 +101,6 @@ export default function MedicationDashboardWrapper({
       
       const { updatedStreak } = await response.json();
       
-      // Optimistically update the UI
       setCurrentMedications(prevMeds => 
         prevMeds?.map(med => 
           med.id === medicationId 
@@ -97,10 +121,23 @@ export default function MedicationDashboardWrapper({
       console.error('Error updating adherence:', error);
       setError('Failed to update adherence. Please try again.');
     }
-  };
+  }, []);
 
   if (error) {
-    return <div className="text-red-500 text-center py-4">{error}</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-700">{error}</p>
+          <button 
+            className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+            onClick={() => setError(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

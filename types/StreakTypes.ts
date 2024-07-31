@@ -1,13 +1,12 @@
-// StreakTypes.ts
+// /types/StreakTypes.ts
 
-export type StreakTiming = 'morning' | 'afternoon' | 'evening' | 'night';
+export type StreakTiming = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+export type TimingValue = 'true' | 'false';
 
 export enum StreakTimingStatus {
-  NotTaken = 'NotTaken',
-  Taken = 'Taken'
+  Taken = 'Taken',
+  NotTaken = 'NotTaken'
 }
-
-export type TimingValue = 'true' | 'false';
 
 export interface StreakMedication {
   id: number;
@@ -15,8 +14,8 @@ export interface StreakMedication {
   before_after_food: string;
   start_date: string;
   end_date: string;
+  timings: Record<StreakTiming, TimingValue>;
   streak: Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>;
-  timings: Partial<Record<StreakTiming, TimingValue>>;
 }
 
 export interface StreakPastMedication {
@@ -24,5 +23,5 @@ export interface StreakPastMedication {
   medicine: string;
   start_date: string;
   end_date: string;
-  timings: Partial<Record<StreakTiming, TimingValue>>;
+  timings: Record<StreakTiming, TimingValue>;
 }

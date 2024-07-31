@@ -1,13 +1,43 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
-import { StreakMedication, StreakPastMedication, StreakTiming, StreakTimingStatus, TimingValue } from '@/types/StreakTypes';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pill } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { motion } from 'framer-motion';
+
+// Type definitions
+interface HistoryRecord {
+  date: string;
+  value: StreakTimingStatus;
+}
+
+interface StreakMedication {
+  id: number;
+  medicine: string;
+  before_after_food: string;
+  timings: Partial<Record<StreakTiming, TimingValue>>;
+  streak: Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>;
+}
+
+interface StreakPastMedication {
+  id: number;
+  medicine: string;
+  start_date: string;
+  end_date: string;
+  timings: Partial<Record<StreakTiming, TimingValue>>;
+}
+
+type StreakTiming = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+type TimingValue = 'true' | 'false';
+
+enum StreakTimingStatus {
+  Taken = 'Taken',
+  NotTaken = 'NotTaken'
+}
 
 interface MedicationDashboardProps {
   currentMedications: StreakMedication[] | null;
@@ -24,16 +54,16 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
   const [showPastMedications, setShowPastMedications] = useState(false);
   const [expandedMedication, setExpandedMedication] = useState<number | null>(null);
 
-  const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
-  const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
+  const handlePrevMonth = useCallback(() => setCurrentMonth(prev => subMonths(prev, 1)), []);
+  const handleNextMonth = useCallback(() => setCurrentMonth(prev => addMonths(prev, 1)), []);
 
-  const getActiveTimings = (timings: Partial<Record<StreakTiming, TimingValue>>): StreakTiming[] => {
+  const getActiveTimings = useCallback((timings: Partial<Record<StreakTiming, TimingValue>>): StreakTiming[] => {
     return (Object.entries(timings) as [StreakTiming, TimingValue][])
       .filter(([_, value]) => value === 'true')
       .map(([timing, _]) => timing);
-  };
+  }, []);
 
-  const renderCheckbox = (medication: StreakMedication, date: string) => {
+  const renderCheckbox = useCallback((medication: StreakMedication, date: string) => {
     const activeTimings = getActiveTimings(medication.timings);
     return (
       <div className="flex flex-wrap gap-4">
@@ -45,6 +75,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                 id={`${medication.id}-${timing}`}
                 checked={isChecked}
                 onCheckedChange={() => onUpdateAdherence(medication.id, date, timing, !isChecked)}
+                className="text-emerald-500 border-emerald-500"
               />
               <label
                 htmlFor={`${medication.id}-${timing}`}
@@ -57,9 +88,9 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
         })}
       </div>
     );
-  };
+  }, [getActiveTimings, onUpdateAdherence]);
 
-  const renderStreak = (medication: StreakMedication) => {
+  const renderStreak = useCallback((medication: StreakMedication) => {
     const days = eachDayOfInterval({
       start: startOfMonth(currentMonth),
       end: endOfMonth(currentMonth)
@@ -69,23 +100,23 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
     return (
       <div className="grid grid-cols-7 gap-2 text-center">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="font-bold">{day}</div>
+          <div key={day} className="font-bold text-gray-600">{day}</div>
         ))}
         {days.map((day) => {
           const date = format(day, 'yyyy-MM-dd');
           return (
             <div key={date} className="flex flex-col items-center">
-              <div className="text-sm">{format(day, 'd')}</div>
+              <div className="text-sm text-gray-600">{format(day, 'd')}</div>
               <div className="flex flex-col gap-1 mt-1">
                 {activeTimings.map((timing) => {
                   const status = medication.streak[date]?.[timing];
                   let bgColor = 'bg-gray-200';
-                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-green-500';
-                  if (status === StreakTimingStatus.NotTaken) bgColor = 'bg-red-500';
+                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-emerald-500';
+                  if (status === StreakTimingStatus.NotTaken) bgColor = 'bg-red-400';
                   return (
                     <div
                       key={`${date}-${timing}`}
-                      className={`w-3 h-3 rounded-full ${bgColor}`}
+                      className={`w-3 h-3 rounded-full ${bgColor} transition-all duration-300 ease-in-out`}
                       title={`${timing}: ${status === StreakTimingStatus.Taken ? 'Taken' : 'Not taken'}`}
                     />
                   );
@@ -96,62 +127,77 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
         })}
       </div>
     );
-  };
+  }, [currentMonth, getActiveTimings]);
 
-  if (!currentMedications || !pastMedications) {
-    return <div className="text-center py-4">Loading medications...</div>;
-  }
-
-  return (
-    <div className="max-w-4xl mx-auto p-4 space-y-6">
-      <h1 className="text-3xl font-bold">Medication Dashboard</h1>
-      <p className="text-sm text-gray-600">Click on a medication name to view its monthly streak data.</p>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Current Medications</CardTitle>
+  const CurrentMedicationsCard = useMemo(() => {
+    if (!currentMedications) return null;
+    return (
+      <Card className="bg-white shadow-lg rounded-lg overflow-hidden border border-emerald-100">
+        <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
+          <CardTitle className="flex items-center">
+            <Pill className="mr-2" />
+            Current Medications
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           {currentMedications.length === 0 ? (
-            <p>No current medications.</p>
+            <p className="text-gray-600">No current medications.</p>
           ) : (
             currentMedications.map((med) => (
-              <div key={med.id} className="mb-6 last:mb-0">
+              <motion.div 
+                key={med.id} 
+                className="mb-6 last:mb-0 bg-emerald-50 p-4 rounded-lg shadow-sm"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
                 <h3 
-                  className="text-lg font-medium mb-2 cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => setExpandedMedication(expandedMedication === med.id ? null : med.id)}
+                  className="text-lg font-medium mb-2 cursor-pointer hover:text-emerald-600 transition-colors flex items-center"
+                  onClick={() => setExpandedMedication(prev => prev === med.id ? null : med.id)}
                 >
                   {med.medicine}
+                  <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${expandedMedication === med.id ? 'transform rotate-180' : ''}`} />
                 </h3>
                 <p className="text-sm text-gray-600 mb-2">{med.before_after_food}</p>
                 {renderCheckbox(med, format(new Date(), 'yyyy-MM-dd'))}
                 {expandedMedication === med.id && (
-                  <div className="mt-4">
+                  <motion.div 
+                    className="mt-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
                     <div className="flex justify-between items-center mb-4">
-                      <Button onClick={handlePrevMonth} variant="outline" size="icon">
+                      <Button onClick={handlePrevMonth} variant="outline" size="icon" className="text-emerald-600 hover:text-emerald-700">
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      <span className="text-lg font-medium">{format(currentMonth, 'MMMM yyyy')}</span>
-                      <Button onClick={handleNextMonth} variant="outline" size="icon">
+                      <span className="text-lg font-medium text-emerald-600">{format(currentMonth, 'MMMM yyyy')}</span>
+                      <Button onClick={handleNextMonth} variant="outline" size="icon" className="text-emerald-600 hover:text-emerald-700">
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
                     {renderStreak(med)}
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
             ))
           )}
         </CardContent>
       </Card>
+    );
+  }, [currentMedications, expandedMedication, currentMonth, renderCheckbox, renderStreak, handlePrevMonth, handleNextMonth]);
 
-      <Card>
-        <CardHeader>
+  const PastMedicationsCard = useMemo(() => {
+    if (!pastMedications) return null;
+    return (
+      <Card className="bg-white shadow-lg rounded-lg overflow-hidden border border-blue-100">
+        <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white">
           <CardTitle>
             <Button
-              onClick={() => setShowPastMedications(!showPastMedications)}
+              onClick={() => setShowPastMedications(prev => !prev)}
               variant="ghost"
-              className="w-full justify-between"
+              className="w-full justify-between text-white hover:text-white hover:bg-white/10"
             >
               Past Medications
               {showPastMedications ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -159,14 +205,14 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
           </CardTitle>
         </CardHeader>
         {showPastMedications && (
-          <CardContent>
+          <CardContent className="p-6">
             {pastMedications.length === 0 ? (
-              <p>No past medications.</p>
+              <p className="text-gray-600">No past medications.</p>
             ) : (
               <Accordion type="single" collapsible className="w-full">
                 {pastMedications.map((med) => (
-                  <AccordionItem key={med.id} value={`past-med-${med.id}`}>
-                    <AccordionTrigger>{med.medicine}</AccordionTrigger>
+                  <AccordionItem key={med.id} value={`past-med-${med.id}`} className="border-b border-gray-200 last:border-b-0">
+                    <AccordionTrigger className="hover:text-blue-600">{med.medicine}</AccordionTrigger>
                     <AccordionContent>
                       <p className="text-sm text-gray-600">
                         Taken from {med.start_date} to {med.end_date}
@@ -182,6 +228,25 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
           </CardContent>
         )}
       </Card>
+    );
+  }, [pastMedications, showPastMedications, getActiveTimings]);
+
+  if (!currentMedications || !pastMedications) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-emerald-50 to-teal-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 py-8">
+      <div className="max-w-4xl mx-auto p-4 space-y-6">
+        <h1 className="text-4xl font-bold text-emerald-800 mb-2">Medication Dashboard</h1>
+        <p className="text-sm text-emerald-600 mb-6">Click on a medication name to view its monthly streak data.</p>
+        {CurrentMedicationsCard}
+        {PastMedicationsCard}
+      </div>
     </div>
   );
 };
