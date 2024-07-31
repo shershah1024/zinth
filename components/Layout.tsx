@@ -25,7 +25,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex justify-between items-center py-4">
             <Link href="/" className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-80 transition duration-300 flex items-center">
               <Activity className="mr-2 text-purple-600" />
-              Zynth
+              Zinth
             </Link>
             <nav className="hidden md:flex space-x-6">
               {navItems.map((item) => (
@@ -68,7 +68,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {children}
       </main>
       <footer className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-center py-6">
-        <p>&copy; 2024 Zynth. Synthesizing your health data for better living.</p>
+        <p>&copy; 2024 Zinth. Synthesizing your health data for better living.</p>
       </footer>
     </div>
   );

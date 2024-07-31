@@ -41,7 +41,7 @@ const HomePage: React.FC = () => {
             transition={{ duration: 0.8 }}
           >
             <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Synthesize Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">Health Journey</span> with Zynth
+              Synthesize Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">Health Journey</span> with Zinth
             </h1>
             <p className="text-xl text-gray-600 mb-8">
               Effortlessly manage prescriptions, track medications, and visualize your health records - all in one intuitive platform.
@@ -62,7 +62,7 @@ const HomePage: React.FC = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <img src="https://iceqxnyfvdajcrhyfvtt.supabase.co/storage/v1/object/public/site_images/health_records.png?t=2024-07-31T18%3A26%3A46.601Z" alt="Zynth Dashboard" className="rounded-xl shadow-2xl" />
+            <img src="https://iceqxnyfvdajcrhyfvtt.supabase.co/storage/v1/object/public/site_images/health_records.png?t=2024-07-31T18%3A26%3A46.601Z" alt="Zinth Dashboard" className="rounded-xl shadow-2xl" />
           </motion.div>
         </div>
 
@@ -108,14 +108,14 @@ const HomePage: React.FC = () => {
           transition={{ duration: 0.8 }}
         >
           <h2 className="text-3xl font-bold mb-4">Ready to Synthesize Your Health Data?</h2>
-          <p className="text-xl mb-8 max-w-2xl mx-auto">Join Zynth today and experience a smarter way to manage your health information.</p>
+          <p className="text-xl mb-8 max-w-2xl mx-auto">Join Zinth today and experience a smarter way to manage your health information.</p>
           <Link href="/upload-test">
             <motion.button 
               className="bg-white text-purple-600 font-bold py-4 px-8 rounded-full transition duration-300 flex items-center mx-auto"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              Start Your Zynth Journey <ArrowRight className="ml-2" />
+              Start Your Zinth Journey <ArrowRight className="ml-2" />
             </motion.button>
           </Link>
         </motion.div>
