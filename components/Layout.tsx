@@ -14,8 +14,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { name: 'Upload Health Records', href: '/upload-test' },
     { name: 'Upload Prescription', href: '/upload-prescription' },
-    { name: 'Health Records', href: '/test-reports' },
-    { name: 'Prescriptions', href: '/prescriptions' },
+    { name: 'View Health Records', href: '/test-reports' },
+    { name: 'View Prescriptions', href: '/prescriptions' },
   ];
 
   return (
