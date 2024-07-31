@@ -107,7 +107,7 @@ const HomePage: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8 }}
         >
-          <h2 className="text-3xl font-bold mb-4">Ready to Synthesize Your Health Data?</h2>
+          <h1 className="text-3xl font-bold mb-4">Ready to Synthesize Your Health Data?</h1>
           <p className="text-xl mb-8 max-w-2xl mx-auto">Join Zinth today and experience a smarter way to manage your health information.</p>
           <Link href="/upload-test">
             <motion.button 
