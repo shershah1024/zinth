@@ -1,4 +1,4 @@
-// app/auth/[...nextauth]/authOptions.ts
+// app/auth/authOptions.ts
 
 import { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
