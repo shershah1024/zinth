@@ -13,7 +13,6 @@ export const dynamic = 'force-dynamic';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// Define types for the request body
 interface TestComponent {
   component: string;
   value: number | string;
@@ -26,44 +25,53 @@ interface TestComponent {
 interface TestResult {
   date: string;
   components: TestComponent[];
+  descriptive_name?: string;
 }
 
 interface RequestBody {
-  result: TestResult;
-  publicUrl?: string;
+  results: TestResult[];
+  publicUrl: string;
 }
 
 export async function POST(request: NextRequest) {
-  console.log('Received POST request to store test result');
+  console.log('Received POST request to store test results');
   try {
     const requestBody: RequestBody = await request.json();
     console.log('Received request body:', JSON.stringify(requestBody, null, 2));
 
-    const { result, publicUrl } = requestBody;
-
-    if (!result || !result.date || !Array.isArray(result.components)) {
-      console.error('Invalid test data structure');
-      return NextResponse.json({ error: 'Invalid test data structure' }, { status: 400 });
+    if (!Array.isArray(requestBody.results) || requestBody.results.length === 0) {
+      console.error('Invalid test data structure: results array is missing or empty');
+      return NextResponse.json({ error: 'Invalid test data structure: results array is missing or empty' }, { status: 400 });
     }
 
-    const { date, components } = result;
+    const allTestDataToInsert = requestBody.results.flatMap((result: TestResult, index: number) => {
+      if (!result.date || !Array.isArray(result.components)) {
+        console.error(`Invalid test result structure at index ${index}:`, JSON.stringify(result, null, 2));
+        return [];
+      }
 
-    const testDataToInsert = components.map((component: TestComponent) => ({
-      patient_number: '919885842349', // Replace with actual patient number logic
-      test_id: crypto.randomUUID(),
-      component: component.component,
-      unit: component.unit,
-      number_value: typeof component.value === 'number' ? component.value : null,
-      text_value: typeof component.value === 'string' ? component.value : null,
-      normal_range_min: component.normal_range_min,
-      normal_range_max: component.normal_range_max,
-      date: date,
-      public_url: publicUrl || 'NOT_PROVIDED',
-      normal_range_text: component.normal_range_text,
-    }));
+      return result.components.map((component: TestComponent) => ({
+        patient_number: '919885842349', // Replace with actual patient number logic
+        test_id: crypto.randomUUID(),
+        component: component.component,
+        unit: component.unit,
+        number_value: typeof component.value === 'number' ? component.value : null,
+        text_value: typeof component.value === 'string' ? component.value : null,
+        normal_range_min: component.normal_range_min,
+        normal_range_max: component.normal_range_max,
+        date: result.date,
+        public_url: requestBody.publicUrl,
+        normal_range_text: component.normal_range_text,
+      }));
+    });
 
-    console.log('Inserting data into Supabase...');
-    const { data, error } = await supabase.from('test_results').insert(testDataToInsert);
+    if (allTestDataToInsert.length === 0) {
+      console.error('No valid test data to insert');
+      return NextResponse.json({ error: 'No valid test data to insert' }, { status: 400 });
+    }
+
+    console.log('Inserting data into Supabase:', JSON.stringify(allTestDataToInsert, null, 2));
+    const { data, error } = await supabase.from('test_results').insert(allTestDataToInsert);
     
     if (error) {
       console.error('Supabase insert error:', error);
@@ -71,9 +79,12 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Data inserted successfully:', data);
-    return NextResponse.json({ message: 'Test result stored successfully' });
+    return NextResponse.json({ message: 'Test results stored successfully' });
   } catch (error) {
-    console.error('Error storing test result:', error);
-    return NextResponse.json({ error: 'Error storing test result' }, { status: 500 });
+    console.error('Error storing test results:', error);
+    return NextResponse.json({ 
+      error: 'Error storing test results', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
   }
 }

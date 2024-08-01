@@ -11,7 +11,6 @@ if (!BASE_URL) {
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
-
 async function convertPdfToImages(file: File): Promise<string[]> {
   console.log(`[PDF Conversion] Starting conversion for file: ${file.name}`);
   const formData = new FormData();
@@ -60,7 +59,7 @@ async function processFile(file: File): Promise<{ base64Images: string[]; mimeTy
   }
 }
 
-async function analyzeImages(images: string[], mimeType: string): Promise<AnalysisResult[]> {
+async function analyzeImages(images: string[], mimeType: string): Promise<{ results: AnalysisResult[] }> {
   console.log(`[Image Analysis] Analyzing ${images.length} images`);
   const analyzeResponse = await fetch(`${BASE_URL}/api/analyze`, {
     method: 'POST',
@@ -73,33 +72,25 @@ async function analyzeImages(images: string[], mimeType: string): Promise<Analys
     throw new Error(`Analysis failed with status ${analyzeResponse.status}`);
   }
   
-  const analysisResults: AnalysisResult[] = await analyzeResponse.json();
-  console.log("[Image Analysis] Analysis results:", JSON.stringify(analysisResults, null, 2));
-  return analysisResults;
+  const analysisData = await analyzeResponse.json();
+  console.log("[Image Analysis] Analysis results:", JSON.stringify(analysisData, null, 2));
+  
+  if (!analysisData.results || !Array.isArray(analysisData.results)) {
+    console.error("[Image Analysis] Unexpected analysis results structure");
+    throw new Error("Analysis results do not contain an array of results as expected");
+  }
+  
+  return analysisData;
 }
 
 async function storeResult(result: AnalysisResult, publicUrl: string, pageNumber: number): Promise<void> {
   console.log(`[Result Storage] Storing result for page ${pageNumber}`);
-  const endpoint = result.imaging_description ? '/api/store/imaging-result' : '/api/store/test-results';
-
-  const formattedResult: AnalysisResult = {
-    date: result.date || new Date().toISOString().split('T')[0],
-    components: result.components.map((component: TestComponent) => ({
-      component: component.component,
-      value: component.value,
-      unit: component.unit,
-      normal_range_min: component.normal_range_min,
-      normal_range_max: component.normal_range_max,
-      normal_range_text: component.normal_range_text
-    })),
-    imaging_description: result.imaging_description,
-    descriptive_name: result.descriptive_name
-  };
+  const endpoint = '/api/store/test-results';
 
   const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ result: formattedResult, publicUrl })
+    body: JSON.stringify({ results: [result], publicUrl })
   });
   
   if (!storeResponse.ok) {
@@ -145,12 +136,12 @@ export async function POST(request: NextRequest) {
     const analysisResults = await analyzeImages(base64Images, mimeType);
 
     // Store results
-    await Promise.all(analysisResults.map((result, index) => 
-      storeResult(result, publicUrl, index + 1)
-    ));
+    for (let i = 0; i < analysisResults.results.length; i++) {
+      await storeResult(analysisResults.results[i], publicUrl, i + 1);
+    }
 
     console.log('[POST] All processing completed successfully');
-    return NextResponse.json({ results: analysisResults, publicUrl });
+    return NextResponse.json({ results: analysisResults.results, publicUrl });
   } catch (error) {
     console.error('Error processing medical report:', error);
     return NextResponse.json({ 
