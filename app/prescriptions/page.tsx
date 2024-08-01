@@ -13,6 +13,7 @@ interface RawMedication {
   afternoon: TimingValue;
   evening: TimingValue;
   night: TimingValue;
+  public_url?: string; // Add this line
 }
 
 interface RawPastMedication {
@@ -56,7 +57,8 @@ async function fetchMedicationData() {
         Afternoon: med.afternoon,
         Evening: med.evening,
         Night: med.night
-      }
+      },
+      public_url: med.public_url // Add this line
     }));
 
     const pastMedications: StreakPastMedication[] = pastMedicationsRaw.map(med => ({

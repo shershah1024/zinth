@@ -1,15 +1,13 @@
-'use client'
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pill } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pill, Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { motion } from 'framer-motion';
 
-// Type definitions
+// Type definitions (unchanged)
 interface HistoryRecord {
   date: string;
   value: StreakTimingStatus;
@@ -21,6 +19,7 @@ interface StreakMedication {
   before_after_food: string;
   timings: Partial<Record<StreakTiming, TimingValue>>;
   streak: Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>;
+  public_url?: string;
 }
 
 interface StreakPastMedication {
@@ -63,6 +62,21 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
       .map(([timing, _]) => timing);
   }, []);
 
+  const handleDownload = useCallback((url: string, medicineName: string) => {
+    const fileName = `${medicineName.replace(/\s+/g, '_')}_prescription.pdf`;
+    fetch(url)
+      .then(response => response.blob())
+      .then(blob => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .catch(error => console.error('Error downloading prescription:', error));
+  }, []);
+
   const renderCheckbox = useCallback((medication: StreakMedication, date: string) => {
     const activeTimings = getActiveTimings(medication.timings);
     return (
@@ -75,7 +89,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                 id={`${medication.id}-${timing}`}
                 checked={isChecked}
                 onCheckedChange={() => onUpdateAdherence(medication.id, date, timing, !isChecked)}
-                className="text-emerald-500 border-emerald-500"
+                className="text-blue-500 border-blue-500"
               />
               <label
                 htmlFor={`${medication.id}-${timing}`}
@@ -111,7 +125,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                 {activeTimings.map((timing) => {
                   const status = medication.streak[date]?.[timing];
                   let bgColor = 'bg-gray-200';
-                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-emerald-500';
+                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-blue-500';
                   if (status === StreakTimingStatus.NotTaken) bgColor = 'bg-red-400';
                   return (
                     <div
@@ -132,8 +146,8 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
   const CurrentMedicationsCard = useMemo(() => {
     if (!currentMedications) return null;
     return (
-      <Card className="bg-white shadow-lg rounded-lg overflow-hidden border border-emerald-100">
-        <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
+      <Card className="bg-blue-50 shadow-lg rounded-lg overflow-hidden border border-blue-200">
+        <CardHeader className="bg-blue-500 text-white">
           <CardTitle className="flex items-center">
             <Pill className="mr-2" />
             Current Medications
@@ -146,18 +160,31 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
             currentMedications.map((med) => (
               <motion.div 
                 key={med.id} 
-                className="mb-6 last:mb-0 bg-emerald-50 p-4 rounded-lg shadow-sm"
+                className="mb-6 last:mb-0 bg-white p-4 rounded-lg shadow-sm"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
               >
-                <h3 
-                  className="text-lg font-medium mb-2 cursor-pointer hover:text-emerald-600 transition-colors flex items-center"
-                  onClick={() => setExpandedMedication(prev => prev === med.id ? null : med.id)}
-                >
-                  {med.medicine}
-                  <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${expandedMedication === med.id ? 'transform rotate-180' : ''}`} />
-                </h3>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 
+                    className="text-lg font-medium cursor-pointer hover:text-blue-600 transition-colors flex items-center"
+                    onClick={() => setExpandedMedication(prev => prev === med.id ? null : med.id)}
+                  >
+                    {med.medicine}
+                    <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${expandedMedication === med.id ? 'transform rotate-180' : ''}`} />
+                  </h3>
+                  {med.public_url && (
+                    <Button
+                      onClick={() => handleDownload(med.public_url!, med.medicine)}
+                      variant="outline"
+                      size="sm"
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Prescription
+                    </Button>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600 mb-2">{med.before_after_food}</p>
                 {renderCheckbox(med, format(new Date(), 'yyyy-MM-dd'))}
                 {expandedMedication === med.id && (
@@ -169,11 +196,11 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                     transition={{ duration: 0.3 }}
                   >
                     <div className="flex justify-between items-center mb-4">
-                      <Button onClick={handlePrevMonth} variant="outline" size="icon" className="text-emerald-600 hover:text-emerald-700">
+                      <Button onClick={handlePrevMonth} variant="outline" size="icon" className="text-blue-600 hover:text-blue-700">
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      <span className="text-lg font-medium text-emerald-600">{format(currentMonth, 'MMMM yyyy')}</span>
-                      <Button onClick={handleNextMonth} variant="outline" size="icon" className="text-emerald-600 hover:text-emerald-700">
+                      <span className="text-lg font-medium text-blue-600">{format(currentMonth, 'MMMM yyyy')}</span>
+                      <Button onClick={handleNextMonth} variant="outline" size="icon" className="text-blue-600 hover:text-blue-700">
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
@@ -186,13 +213,13 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
         </CardContent>
       </Card>
     );
-  }, [currentMedications, expandedMedication, currentMonth, renderCheckbox, renderStreak, handlePrevMonth, handleNextMonth]);
+  }, [currentMedications, expandedMedication, currentMonth, renderCheckbox, renderStreak, handlePrevMonth, handleNextMonth, handleDownload]);
 
   const PastMedicationsCard = useMemo(() => {
     if (!pastMedications) return null;
     return (
-      <Card className="bg-white shadow-lg rounded-lg overflow-hidden border border-blue-100">
-        <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white">
+      <Card className="bg-gray-50 shadow-lg rounded-lg overflow-hidden border border-gray-200">
+        <CardHeader className="bg-gray-500 text-white">
           <CardTitle>
             <Button
               onClick={() => setShowPastMedications(prev => !prev)}
@@ -233,17 +260,17 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
 
   if (!currentMedications || !pastMedications) {
     return (
-      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-emerald-50 to-teal-50">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-emerald-500"></div>
+      <div className="flex justify-center items-center h-screen bg-white">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 py-8">
+    <div className="min-h-screen bg-white py-8">
       <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <h1 className="text-4xl font-bold text-emerald-800 mb-2">Medication Dashboard</h1>
-        <p className="text-sm text-emerald-600 mb-6">Click on a medication name to view its monthly streak data.</p>
+        <h1 className="text-4xl font-bold text-blue-800 mb-2">Medication Dashboard</h1>
+        <p className="text-sm text-blue-600 mb-6">Click on a medication name to view its monthly streak data. Use the download button to get the prescription.</p>
         {CurrentMedicationsCard}
         {PastMedicationsCard}
       </div>

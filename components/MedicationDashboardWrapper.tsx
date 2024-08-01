@@ -20,6 +20,7 @@ interface StreakMedication {
   end_date: string;
   timings: Record<StreakTiming, TimingValue>;
   streak: Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>;
+  public_url?: string; // Add this line to include the prescription URL
 }
 
 interface StreakPastMedication {
@@ -57,6 +58,10 @@ export default function MedicationDashboardWrapper({
           };
           existingMed.start_date = new Date(existingMed.start_date) < new Date(med.start_date) ? existingMed.start_date : med.start_date;
           existingMed.end_date = new Date(existingMed.end_date) > new Date(med.end_date) ? existingMed.end_date : med.end_date;
+          // Preserve the public_url if it exists
+          if (med.public_url) {
+            existingMed.public_url = med.public_url;
+          }
         } else {
           acc.push({ ...med });
         }
@@ -125,12 +130,12 @@ export default function MedicationDashboardWrapper({
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center justify-center">
-        <div className="bg-white p-6 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="bg-blue-50 p-6 rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold text-blue-600 mb-4">Error</h2>
           <p className="text-gray-700">{error}</p>
           <button 
-            className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
             onClick={() => setError(null)}
           >
             Dismiss
