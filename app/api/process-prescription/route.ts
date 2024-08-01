@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64image-jzfcn33k5q-uc.a.run.app/pdf-to-base64/';
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
 
 if (!BASE_URL) {
   throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');

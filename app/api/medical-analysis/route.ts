@@ -8,6 +8,10 @@ if (!BASE_URL) {
   throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');
 }
 
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
+
 async function convertPdfToImages(file: File): Promise<string[]> {
   console.log(`[PDF Conversion] Starting conversion for file: ${file.name}`);
   const formData = new FormData();
