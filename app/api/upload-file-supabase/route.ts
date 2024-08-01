@@ -11,6 +11,12 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
+export const config = {
+  api: {
+    bodyParser: false,
+    },
+};
+
 export async function POST(request: NextRequest) {
   console.log('[Supabase Upload] Received request for file upload');
   try {
