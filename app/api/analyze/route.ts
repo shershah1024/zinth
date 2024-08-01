@@ -63,7 +63,7 @@ async function analyzeMedicalReportBatch(images: string[], mimeType: string): Pr
           items: {
             type: "object",
             properties: {
-              component: { type: "string", description: "Name of the test componen. If it is part of the unire analyis preface the name of the component with 'Urine-'" },
+              component: { type: "string", description: "Name of the test componen. If it is part of the unire analyis preface the name of the component with 'Urine Test'" },
               value: { 
                 oneOf: [
                   { type: "number" },
