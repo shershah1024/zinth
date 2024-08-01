@@ -1,8 +1,8 @@
-// app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
+import { NextAuthOptions } from "next-auth"
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -14,7 +14,7 @@ const handler = NextAuth({
       }
     }),
   ],
-  debug: process.env.NODE_ENV === 'development',
+  secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async signIn({ user, account, profile, email, credentials }) {
       console.log("Sign-in callback triggered", { user, account, profile })
@@ -30,6 +30,8 @@ const handler = NextAuth({
   pages: {
     signIn: '/sign-up',
   },
-})
+}
+
+const handler = NextAuth(authOptions)
 
 export { handler as GET, handler as POST }
