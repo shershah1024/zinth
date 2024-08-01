@@ -66,8 +66,6 @@ const HomePage: React.FC = () => {
           </motion.div>
         </div>
 
-        
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
           <FeatureCard
             title="Smart Upload"
@@ -102,20 +100,20 @@ const HomePage: React.FC = () => {
         </div>
 
         <motion.div 
-          className="text-center bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-16 rounded-2xl shadow-xl"
+          className="text-center bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-10 rounded-xl shadow-lg max-w-3xl mx-auto"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8 }}
         >
-          <h1 className="text-3xl font-bold mb-4">Ready to Synthesize Your Health Data?</h1>
-          <p className="text-xl mb-8 max-w-2xl mx-auto">Join Zinth today and experience a smarter way to manage your health information.</p>
+          <h2 className="text-2xl font-bold mb-3">Ready to Synthesize Your Health Data?</h2>
+          <p className="text-lg mb-5 max-w-xl mx-auto">Join Zinth today and experience a smarter way to manage your health information.</p>
           <Link href="/upload-test">
             <motion.button 
-              className="bg-white text-purple-600 font-bold py-4 px-8 rounded-full transition duration-300 flex items-center mx-auto"
+              className="bg-white text-purple-600 font-bold py-2 px-6 rounded-full text-sm transition duration-300 flex items-center mx-auto"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              Start Your Zinth Journey <ArrowRight className="ml-2" />
+              Start Your Zinth Journey <ArrowRight className="ml-2 h-4 w-4" />
             </motion.button>
           </Link>
         </motion.div>
