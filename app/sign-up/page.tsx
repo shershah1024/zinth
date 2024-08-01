@@ -1,3 +1,5 @@
+//app/sign-up/page.tsx
+
 import React, { Suspense } from 'react'
 import SignUpContent from './SignUpContent'
 import { headers } from 'next/headers'

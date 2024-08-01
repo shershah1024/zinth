@@ -1,3 +1,5 @@
+//app/prescriptions/page.tsx
+
 import { Suspense } from 'react';
 import MedicationDashboardWrapper from '@/components/MedicationDashboardWrapper';
 import { StreakMedication, StreakPastMedication, StreakTiming, StreakTimingStatus, TimingValue } from '@/types/StreakTypes';

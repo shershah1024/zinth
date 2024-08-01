@@ -1,3 +1,5 @@
+//app/imaging-results/page.tsx
+
 import React from 'react';
 import { ImagingResultsDisplay } from '@/components/ImagingResultsDisplay';
 

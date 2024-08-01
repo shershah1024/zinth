@@ -1,22 +1,17 @@
 "use client"
 
-import React, { useState, ReactNode } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { Menu, X, Activity } from 'lucide-react';
+import { Activity } from 'lucide-react';
+import { Button } from "@/components/ui/button"
 
 interface LayoutProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const navItems = [
-    { name: 'Upload Health Records', href: '/upload-test' },
-    { name: 'Upload Prescription', href: '/upload-prescription' },
-    { name: 'View Health Records', href: '/test-reports' },
-    { name: 'View Prescriptions', href: '/prescriptions' },
-  ];
+  // Placeholder for authentication state
+  const isAuthenticated = false; // This will be replaced with actual auth check later
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 via-white to-indigo-50">
@@ -27,42 +22,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Activity className="mr-2 text-purple-600" />
               Zinth
             </Link>
-            <nav className="hidden md:flex space-x-6">
-              {navItems.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="text-gray-600 hover:text-purple-600 transition duration-300"
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </nav>
-            <div className="flex items-center">
-              <button
-                className="md:hidden p-2 rounded-md bg-gray-200 text-gray-600 hover:bg-gray-300"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
+            <nav className="flex items-center space-x-4">
+              <Button 
+                variant="outline" 
+                className="bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
+                asChild
               >
-                {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </button>
-            </div>
+                <Link href="/dashboard">Dashboard</Link>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
+                asChild
+              >
+                <Link href="/signin">
+                  {isAuthenticated ? "Sign Out" : "Sign In"}
+                </Link>
+              </Button>
+            </nav>
           </div>
         </div>
-        {isMenuOpen && (
-          <div className="md:hidden">
-            <nav className="px-4 pt-2 pb-4 space-y-2">
-              {navItems.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-purple-600 hover:bg-gray-100 transition duration-300"
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        )}
       </header>
       <main className="container mx-auto px-4 py-8">
         {children}

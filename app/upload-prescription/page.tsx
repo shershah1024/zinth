@@ -1,4 +1,4 @@
-//app/updload-prescription/page.tsx
+//app/upload-prescription/page.tsx
 import { PrescriptionUploadForm } from '@/components/PrescriptionUploadForm'
 import { PrescriptionAnalysisResult } from '@/types/medical'
 import UploadSuccessHandler from '@/components/UploadSuccesHandler'
