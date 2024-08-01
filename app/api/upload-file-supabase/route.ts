@@ -11,12 +11,6 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-export const config = {
-  api: {
-    bodyParser: false,
-    },
-};
-
 export async function POST(request: NextRequest) {
   console.log('[Supabase Upload] Received request for file upload');
   try {
@@ -31,10 +25,16 @@ export async function POST(request: NextRequest) {
     const fileName = `${Date.now()}_${file.name}`;
     console.log(`[Supabase Upload] Generated filename: ${fileName}`);
 
+    // Convert File to ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    const fileBuffer = new Uint8Array(arrayBuffer);
+
     // Upload the file
     const { data, error } = await supabase.storage
       .from('pdfs')
-      .upload(fileName, file);
+      .upload(fileName, fileBuffer, {
+        contentType: file.type,
+      });
 
     if (error) {
       console.error('[Supabase Upload] Error uploading file:', error);
@@ -67,3 +67,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unexpected error occurred', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
+
+export const dynamic = 'force-dynamic';
