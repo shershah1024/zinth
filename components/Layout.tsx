@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useSession, signOut } from "next-auth/react";
 import { Activity } from 'lucide-react';
 import { Button } from "@/components/ui/button"
 
@@ -10,8 +11,11 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  // Placeholder for authentication state
-  const isAuthenticated = false; // This will be replaced with actual auth check later
+  const { data: session, status } = useSession();
+
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/' });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 via-white to-indigo-50">
@@ -30,15 +34,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 <Link href="/dashboard">Dashboard</Link>
               </Button>
-              <Button 
-                variant="outline" 
-                className="bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
-                asChild
-              >
-                <Link href="/signin">
-                  {isAuthenticated ? "Sign Out" : "Sign In"}
-                </Link>
-              </Button>
+              {status === "authenticated" ? (
+                <>
+                  <Button 
+                    variant="outline" 
+                    className="bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
+                    onClick={handleSignOut}
+                  >
+                    Sign Out
+                  </Button>
+                  <span className="text-gray-600">
+                    Welcome, {session.user?.name}
+                  </span>
+                </>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  className="bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
+                  asChild
+                >
+                  <Link href="/sign-up">Sign Up / Sign In</Link>
+                </Button>
+              )}
             </nav>
           </div>
         </div>
