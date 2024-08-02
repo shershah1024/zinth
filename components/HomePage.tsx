@@ -107,7 +107,7 @@ const HomePage: React.FC = () => {
         >
           <h2 className="text-2xl font-bold mb-3">Ready to Synthesize Your Health Data?</h2>
           <p className="text-lg mb-5 max-w-xl mx-auto">Join Zinth today and experience a smarter way to manage your health information.</p>
-          <Link href="/upload-test">
+          <Link href="/dashboard">
             <motion.button 
               className="bg-white text-purple-600 font-bold py-2 px-6 rounded-full text-sm transition duration-300 flex items-center mx-auto"
               whileHover={{ scale: 1.05 }}
