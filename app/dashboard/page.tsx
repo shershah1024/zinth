@@ -1,6 +1,9 @@
 import React from 'react';
 import { Metadata } from 'next';
 import dynamic from 'next/dynamic';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/auth/authOptions";
+import { redirect } from "next/navigation";
 
 const DynamicDashboard = dynamic(() => import('@/components/Dashboard'), {
   ssr: false,
@@ -16,7 +19,13 @@ export const metadata: Metadata = {
   description: 'Manage your health records, prescriptions, and medical imaging in one place.',
 };
 
-export default function DashboardPage(): JSX.Element {
+export default async function DashboardPage(): Promise<JSX.Element> {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    redirect('/sign-up');
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-start justify-center pt-16">
       <DynamicDashboard />
