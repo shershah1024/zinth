@@ -46,7 +46,7 @@ const HomePage: React.FC = () => {
             <p className="text-xl text-gray-600 mb-8">
               Effortlessly manage prescriptions, track medications, and visualize your health records - all in one intuitive platform.
             </p>
-            <Link href="/upload-test">
+            <Link href="/dashboard">
               <motion.button 
                 className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-4 px-8 rounded-full transition duration-300 flex items-center"
                 whileHover={{ scale: 1.05 }}
