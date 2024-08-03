@@ -5,13 +5,9 @@ import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
-const DOCUMENT_CLASSIFICATION_URL = '${BASE_URL}/api/find-document-type'; // Update this if the endpoint URL is different
+const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
 
-
-
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
+const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-type`;
 
 const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
 
