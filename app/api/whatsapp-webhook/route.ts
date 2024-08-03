@@ -140,7 +140,6 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
-  let tempFilePath: string | undefined;
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
     if (!mediaInfo) {
@@ -160,14 +159,8 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
 
-    // Create a temporary file
-    const tempDir = os.tmpdir();
-    tempFilePath = path.join(tempDir, preparedFilename);
-    await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
-
-    // Read the file and convert to base64
-    const fileBuffer = await fs.readFile(tempFilePath);
-    const base64Image = fileBuffer.toString('base64');
+    // Convert arrayBuffer to base64
+    const base64Image = Buffer.from(arrayBuffer).toString('base64');
 
     // Call the document classification API
     const baseUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -206,11 +199,6 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
   } catch (error) {
     console.error(`Error handling ${message.type} message:`, error);
     return `Sorry, there was an error processing your ${message.type}.`;
-  } finally {
-    // Clean up: delete the temporary file
-    if (tempFilePath) {
-      await fs.unlink(tempFilePath).catch(console.error);
-    }
   }
 }
 
