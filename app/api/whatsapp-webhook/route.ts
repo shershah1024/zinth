@@ -165,43 +165,42 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     tempFilePath = path.join(tempDir, preparedFilename);
     await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
 
-    // Create FormData and append the file
-    const formData = new FormData();
-    const fileStream = await fs.readFile(tempFilePath);
-    formData.append('file', new Blob([fileStream]), preparedFilename);
+    // Read the file and convert to base64
+    const fileBuffer = await fs.readFile(tempFilePath);
+    const base64Image = fileBuffer.toString('base64');
 
-    // Get the base URL from environment variables
+    // Call the document classification API
     const baseUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!baseUrl) {
       throw new Error('API_BASE_URL is not set in environment variables');
     }
 
-    // Call the upload-and-convert API with the full URL
-    const response = await fetch(`${baseUrl}/api/upload-and-convert`, {
+    const classificationResponse = await fetch(`${baseUrl}/api/find-document-type`, {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: base64Image,
+        mimeType: mimeType,
+      }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Upload and convert failed with status ${response.status}`);
+    if (!classificationResponse.ok) {
+      throw new Error(`Document classification failed with status ${classificationResponse.status}`);
     }
 
-    const result = await response.json();
+    const classificationResult = await classificationResponse.json();
 
-    // Truncate the base64 data
-    let truncatedResult;
-    if (Array.isArray(result.base64_images)) {
-      truncatedResult = result.base64_images.map((img: string) => img.substring(0, 50) + '...');
-    } else {
-      truncatedResult = (result.base64_images as string).substring(0, 50) + '...';
-    }
+    // Prepare the response message
+    let responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received and processed.\n`;
+    responseMessage += `Filename: ${preparedFilename}\n`;
+    responseMessage += `Document Type: ${classificationResult.type}\n`;
+    responseMessage += `MIME Type: ${mimeType}\n`;
 
-    // Prepare the response with public URL and MIME type
-    const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received and processed. 
-Filename: ${preparedFilename}
-Public URL: ${result.url}
-MIME Type: ${mimeType}
-Truncated result: ${JSON.stringify(truncatedResult)}`;
+    // Truncate the base64 image data for the response
+    const truncatedBase64 = base64Image.substring(0, 50) + '...';
+    responseMessage += `Truncated Image Data: ${truncatedBase64}`;
 
     return responseMessage;
   } catch (error) {
