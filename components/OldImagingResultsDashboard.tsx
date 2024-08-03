@@ -72,12 +72,7 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                     <a href={result.public_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
                       <Link className="h-4 w-4" />
                     </a>
-                    <a href={`/patient/${result.patient_number}`} className="text-green-500 hover:text-green-700">
-                      <User className="h-4 w-4" />
-                    </a>
-                    <a href={`/result/${result.id}`} className="text-purple-500 hover:text-purple-700">
-                      <FileText className="h-4 w-4" />
-                    </a>
+                    
                   </div>
                 </TableCell>
               </TableRow>
