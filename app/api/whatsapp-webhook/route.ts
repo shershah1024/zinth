@@ -140,6 +140,7 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
+  let tempFilePath: string | undefined;
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
     if (!mediaInfo) {
@@ -159,18 +160,21 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
 
-    // Create a File object from the ArrayBuffer
-    const file = new File([arrayBuffer], preparedFilename, { type: mimeType });
-
-    // Create FormData and append the file
-    const formData = new FormData();
-    formData.append('file', file);
+    // Create a temporary file
+    const tempDir = os.tmpdir();
+    tempFilePath = path.join(tempDir, preparedFilename);
+    await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
 
     // Get the base URL from environment variables
     const baseUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!baseUrl) {
       throw new Error('API_BASE_URL is not set in environment variables');
     }
+
+    // Create FormData and append the file
+    const formData = new FormData();
+    const fileStream = await fs.readFile(tempFilePath);
+    formData.append('file', new Blob([fileStream]), preparedFilename);
 
     // Call the upload-and-convert API
     const uploadResponse = await fetch(`${baseUrl}/api/upload-and-convert`, {
@@ -217,6 +221,11 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
   } catch (error) {
     console.error(`Error handling ${message.type} message:`, error);
     return `Sorry, there was an error processing your ${message.type}.`;
+  } finally {
+    // Clean up: delete the temporary file
+    if (tempFilePath) {
+      await fs.unlink(tempFilePath).catch(console.error);
+    }
   }
 }
 
