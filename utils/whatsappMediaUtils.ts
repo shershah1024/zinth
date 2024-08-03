@@ -1,5 +1,6 @@
 import { fetchWithTimeout, handleFetchErrors } from './whatsappUtils';
 import { createClient } from '@supabase/supabase-js';
+import fetch from 'node-fetch';  // Make sure to install and import node-fetch
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -40,14 +41,20 @@ async function getMediaInfo(mediaId: string): Promise<MediaInfo> {
 
 async function downloadMedia(mediaUrl: string): Promise<Buffer> {
   try {
-    const response = await fetchWithTimeout(mediaUrl, {
+    const response = await fetch(mediaUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
       },
     });
-    await handleFetchErrors(response);
-    return Buffer.from(await response.arrayBuffer());
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const buffer = await response.buffer();
+    console.log(`Downloaded file size: ${buffer.length} bytes`);
+    return buffer;
   } catch (error) {
     console.error('Error downloading media:', error);
     throw error;
@@ -56,6 +63,7 @@ async function downloadMedia(mediaUrl: string): Promise<Buffer> {
 
 async function uploadFileToSupabase(fileData: Buffer, fileName: string, contentType: string): Promise<{ path: string; publicUrl: string }> {
   try {
+    console.log(`Uploading file size: ${fileData.length} bytes`);
     const { data, error } = await supabase.storage
       .from('all_file')
       .upload(fileName, fileData, {
@@ -91,13 +99,17 @@ async function uploadFileToSupabase(fileData: Buffer, fileName: string, contentT
 export async function downloadAndUploadMedia(mediaId: string): Promise<{ path: string; publicUrl: string }> {
   try {
     const mediaInfo = await getMediaInfo(mediaId);
+    console.log(`Media info received. File size from API: ${mediaInfo.file_size} bytes`);
+    
     const binaryData = await downloadMedia(mediaInfo.url);
+    console.log(`Downloaded file size: ${binaryData.length} bytes`);
 
     const fileName = `media_${Date.now()}.${mediaInfo.mime_type.split('/')[1]}`;
     
     const result = await uploadFileToSupabase(binaryData, fileName, mediaInfo.mime_type);
 
     console.log(`Media downloaded and uploaded to Supabase: ${result.path}`);
+    console.log(`Uploaded file size: ${binaryData.length} bytes`);
 
     return result;
   } catch (error) {
