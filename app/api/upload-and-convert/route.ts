@@ -86,22 +86,29 @@ export async function POST(request: NextRequest) {
     let base64Data: string | string[];
     let mimeType: string;
 
-    if (file.type === 'application/pdf') {
-      base64Data = await convertPdfToImages(publicUrl);
-      console.log(`[PDF Processing] Converted PDF into ${base64Data.length} images`);
-      mimeType = 'image/png';  // Set MIME type to image/png for PDFs
-    } else {
+    if (file.type.startsWith('image/')) {
+      // For image files, keep the original MIME type
       base64Data = await getBase64(file);
-      console.log(`[Image Processing] Converted image to base64`);
-      mimeType = file.type;  // Use the original MIME type for non-PDF files
+      mimeType = file.type;
+      console.log(`[Image Processing] Converted image to base64, keeping original MIME type: ${mimeType}`);
+    } else if (file.type === 'application/pdf') {
+      // For PDF files, convert to PNG images
+      base64Data = await convertPdfToImages(publicUrl);
+      mimeType = 'image/png';
+      console.log(`[PDF Processing] Converted PDF into ${base64Data.length} PNG images`);
+    } else {
+      // For all other file types, convert to base64 and set MIME type to PNG
+      base64Data = await getBase64(file);
+      mimeType = 'image/png';
+      console.log(`[File Processing] Converted file to base64, setting MIME type to PNG`);
     }
 
-    console.log(`[File Processing] MIME type: ${mimeType}`);
+    console.log(`[File Processing] Final MIME type: ${mimeType}`);
 
     if (Array.isArray(base64Data)) {
       console.log(`[File Processing] First image base64 prefix: ${base64Data[0].substring(0, 50)}...`);
     } else {
-      console.log(`[File Processing] Image base64 prefix: ${base64Data.substring(0, 50)}...`);
+      console.log(`[File Processing] File base64 prefix: ${base64Data.substring(0, 50)}...`);
     }
 
     return NextResponse.json({
