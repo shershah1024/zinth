@@ -138,6 +138,8 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
   return "Received an empty text message";
 }
 
+
+
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
   let tempFilePath: string | undefined;
@@ -172,15 +174,15 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     console.log(`Temporary file created at: ${tempFilePath}`);
 
     // Get the base URL from environment variables
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
     if (!baseUrl) {
-      throw new Error('API_BASE_URL is not set in environment variables');
+      throw new Error('NEXT_PUBLIC_BASE_URL is not set in environment variables');
     }
 
     // Create FormData and append the file
     const formData = new FormData();
     const fileStream = await fs.readFile(tempFilePath);
-    formData.append('file', new Blob([fileStream]), preparedFilename);
+    formData.append('file', new Blob([fileStream], { type: mimeType }), preparedFilename);
 
     console.log('Calling upload-and-convert API...');
     // Call the upload-and-convert API
@@ -197,37 +199,21 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     const uploadResult = await uploadResponse.json();
     console.log('Upload and convert result:', JSON.stringify(uploadResult, null, 2));
 
-    // Check if the uploaded result is actually an image
-    let base64Image = uploadResult.base64_images;
-    let actualMimeType = uploadResult.mimeType;
-
-    // If the result is HTML, we need to extract the image data
-    if (base64Image.startsWith('PCFET0NUWVBFIGh0bWw+') || actualMimeType.includes('html')) {
-      console.error('Received HTML instead of image data. Unable to process.');
-      throw new Error('Received HTML instead of image data');
-    }
-
-    // Determine the MIME type for classification
-    const classificationMimeType = isImage ? actualMimeType : 'image/png';
-    console.log(`Classification MIME type: ${classificationMimeType}`);
-
     // Prepare the payload for the document classification API
     const classificationPayload = {
-      image: base64Image,
-      mimeType: classificationMimeType,
+      image: Array.isArray(uploadResult.base64_images) 
+        ? uploadResult.base64_images[0] 
+        : uploadResult.base64_images,
+      mimeType: uploadResult.mimeType,
     };
 
-    // Log a truncated version of the payload
-    console.log('Payload for document classification API (truncated):');
-    console.log(JSON.stringify({
+    console.log('Payload for document classification API:', JSON.stringify({
       ...classificationPayload,
-      image: classificationPayload.image.substring(0, 100) + '...' // Truncate only for logging
+      image: classificationPayload.image.substring(0, 50) + '...' // Truncate for logging
     }, null, 2));
 
-    console.log(`Full base64 image length: ${classificationPayload.image.length}`);
-
     console.log('Calling document classification API...');
-    // Call the document classification API with the full payload
+    // Call the document classification API
     const classificationResponse = await fetch(`${baseUrl}/api/find-document-type`, {
       method: 'POST',
       headers: {
@@ -250,13 +236,8 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     responseMessage += `Filename: ${preparedFilename}\n`;
     responseMessage += `Document Type: ${classificationResult.type}\n`;
     responseMessage += `Original MIME Type: ${mimeType}\n`;
-    responseMessage += `Upload Result MIME Type: ${actualMimeType}\n`;
-    responseMessage += `Classification MIME Type: ${classificationMimeType}\n`;
+    responseMessage += `Converted MIME Type: ${uploadResult.mimeType}\n`;
     responseMessage += `Public URL: ${uploadResult.url}\n`;
-
-    // Truncate the base64 image data for the response
-    const truncatedBase64 = base64Image.substring(0, 50) + '...';
-    responseMessage += `Truncated Image Data: ${truncatedBase64}`;
 
     console.log('Final response message:', responseMessage);
 
