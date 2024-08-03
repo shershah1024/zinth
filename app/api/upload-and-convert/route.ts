@@ -1,3 +1,6 @@
+
+//app/api/upload-and-convert/rpute.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
