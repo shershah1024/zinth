@@ -1,6 +1,8 @@
-// app/api/webhook/route.ts
+// app/api/whatsapp-webhook/route.ts
 
 import { NextResponse } from 'next/server';
+import { sendMessage, sendAudioMessage, sendDocumentMessage, sendImageMessage } from '@/utils/whatsappUtils';
+import { downloadAndSendMedia, uploadMedia } from '@/utils/whatsappMediaUtils';
 
 // Types
 interface WhatsAppMessage {
@@ -62,24 +64,22 @@ export async function POST(req: Request) {
 
     const message = data.entry[0].changes[0].value.messages[0];
     const sender = data.entry[0].changes[0].value.contacts[0].wa_id;
+    const phoneNumberId = data.entry[0].changes[0].value.metadata.phone_number_id;
 
     let response: string;
 
     switch (message.type) {
       case 'text':
-        response = await handleTextMessage(message);
+        response = await handleTextMessage(message, sender);
         break;
       case 'audio':
-        response = await handleAudioMessage(message);
+        response = await handleAudioMessage(message, sender, phoneNumberId);
         break;
       case 'document':
-        response = await handleDocumentMessage(message);
+        response = await handleDocumentMessage(message, sender, phoneNumberId);
         break;
       case 'image':
-        response = await handleImageMessage(message);
-        break;
-      case 'interactive':
-        response = await handleInteractiveMessage(message);
+        response = await handleImageMessage(message, sender, phoneNumberId);
         break;
       default:
         response = "Unsupported message type";
@@ -95,216 +95,47 @@ export async function POST(req: Request) {
   }
 }
 
-// Message handlers
-async function handleTextMessage(message: WhatsAppMessage): Promise<string> {
+async function handleTextMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log('Received text message:', message.text?.body);
+  // Echo the text message back to the user
   return `You said: ${message.text?.body}`;
 }
 
-async function handleAudioMessage(message: WhatsAppMessage): Promise<string> {
+async function handleAudioMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received audio message:', message.audio?.id);
-  const audioUrl = await getMediaUrl(message.audio?.id as string);
-  return `Received audio: ${audioUrl}`;
+  try {
+    const { buffer, filename } = await downloadAndSendMedia(message.audio?.id as string, message.audio?.mime_type as string);
+    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.audio?.mime_type as string);
+    await sendAudioMessage(sender, mediaId);
+    return `Audio received and sent back. Filename: ${filename}`;
+  } catch (error) {
+    console.error('Error handling audio message:', error);
+    return 'Sorry, there was an error processing your audio message.';
+  }
 }
 
-async function handleDocumentMessage(message: WhatsAppMessage): Promise<string> {
+async function handleDocumentMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received document:', message.document?.filename);
-  const documentUrl = await getMediaUrl(message.document?.id as string);
-  return `Received document: ${message.document?.filename}, URL: ${documentUrl}`;
+  try {
+    const { buffer, filename } = await downloadAndSendMedia(message.document?.id as string, message.document?.mime_type as string);
+    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.document?.mime_type as string);
+    await sendDocumentMessage(sender, mediaId, filename);
+    return `Document received and sent back. Filename: ${filename}`;
+  } catch (error) {
+    console.error('Error handling document message:', error);
+    return 'Sorry, there was an error processing your document.';
+  }
 }
 
-async function handleImageMessage(message: WhatsAppMessage): Promise<string> {
+async function handleImageMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received image:', message.image?.id);
-  const imageUrl = await getMediaUrl(message.image?.id as string);
-  return `Received image: ${imageUrl}`;
-}
-
-async function handleInteractiveMessage(message: WhatsAppMessage): Promise<string> {
-  if (message.interactive?.type === 'button_reply') {
-    console.log('Received button reply:', message.interactive.button_reply);
-    return `You clicked: ${message.interactive.button_reply.title}`;
-  }
-  return 'Unsupported interactive message type';
-}
-
-// Utility functions
-async function getMediaUrl(mediaId: string): Promise<string> {
-  // Implement this function to get the URL of media from WhatsApp
-  // You'll need to make an API call to WhatsApp's servers
-  return `https://example.com/media/${mediaId}`;
-}
-
-async function fetchWithTimeout(url: string, options: RequestInit, timeout = 8000): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(id);
-    return response;
+    const { buffer, filename } = await downloadAndSendMedia(message.image?.id as string, message.image?.mime_type as string);
+    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.image?.mime_type as string);
+    await sendImageMessage(sender, mediaId);
+    return `Image received and sent back. Filename: ${filename}`;
   } catch (error) {
-    clearTimeout(id);
-    throw error;
-  }
-}
-
-async function handleFetchErrors(response: Response) {
-  if (!response.ok) {
-    let errorMessage = `HTTP error! status: ${response.status}`;
-    try {
-      const errorBody = await response.text();
-      errorMessage += ` - ${errorBody}`;
-    } catch (e) {
-      console.error('Error reading error response body:', e);
-    }
-    throw new Error(errorMessage);
-  }
-  return response;
-}
-
-function handleSendMessageError(error: unknown) {
-  if (error instanceof TypeError) {
-    console.error('Network error:', error);
-  } else if (error instanceof Error) {
-    if (error.name === 'AbortError') {
-      console.error('Request timed out');
-    } else {
-      console.error('Error sending message:', error.message);
-    }
-  } else {
-    console.error('Unknown error:', error);
-  }
-  // You might want to implement a retry mechanism here
-}
-
-async function sendMessage(to: string, message: string) {
-  const url = `https://graph.facebook.com/v12.0/${process.env.PHONE_NUMBER_ID}/messages`;
-  const headers = {
-    'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
-    'Content-Type': 'application/json',
-  };
-
-  const data = {
-    messaging_product: 'whatsapp',
-    to: to,
-    type: 'text',
-    text: { body: message },
-  };
-
-  try {
-    const response = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(data),
-    });
-
-    await handleFetchErrors(response);
-
-    const responseData = await response.json();
-    console.log('Message sent successfully:', responseData);
-  } catch (error) {
-    handleSendMessageError(error);
-  }
-}
-
-async function sendAudioMessage(to: string, audioUrl: string) {
-  const url = `https://graph.facebook.com/v12.0/${process.env.PHONE_NUMBER_ID}/messages`;
-  const headers = {
-    'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
-    'Content-Type': 'application/json',
-  };
-
-  const data = {
-    messaging_product: 'whatsapp',
-    to: to,
-    type: 'audio',
-    audio: { link: audioUrl },
-  };
-
-  try {
-    const response = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(data),
-    });
-
-    await handleFetchErrors(response);
-
-    const responseData = await response.json();
-    console.log('Audio message sent successfully:', responseData);
-  } catch (error) {
-    handleSendMessageError(error);
-  }
-}
-
-async function sendDocumentMessage(to: string, documentUrl: string, filename: string) {
-  const url = `https://graph.facebook.com/v12.0/${process.env.PHONE_NUMBER_ID}/messages`;
-  const headers = {
-    'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
-    'Content-Type': 'application/json',
-  };
-
-  const data = {
-    messaging_product: 'whatsapp',
-    to: to,
-    type: 'document',
-    document: { link: documentUrl, filename: filename },
-  };
-
-  try {
-    const response = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(data),
-    });
-
-    await handleFetchErrors(response);
-
-    const responseData = await response.json();
-    console.log('Document sent successfully:', responseData);
-  } catch (error) {
-    handleSendMessageError(error);
-  }
-}
-
-async function sendInteractiveMessage(to: string, bodyText: string, buttons: { id: string; title: string }[]) {
-  const url = `https://graph.facebook.com/v12.0/${process.env.PHONE_NUMBER_ID}/messages`;
-  const headers = {
-    'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
-    'Content-Type': 'application/json',
-  };
-
-  const data = {
-    messaging_product: 'whatsapp',
-    to: to,
-    type: 'interactive',
-    interactive: {
-      type: 'button',
-      body: { text: bodyText },
-      action: {
-        buttons: buttons.map(button => ({
-          type: 'reply',
-          reply: { id: button.id, title: button.title }
-        }))
-      }
-    }
-  };
-
-  try {
-    const response = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(data),
-    });
-
-    await handleFetchErrors(response);
-
-    const responseData = await response.json();
-    console.log('Interactive message sent successfully:', responseData);
-  } catch (error) {
-    handleSendMessageError(error);
+    console.error('Error handling image message:', error);
+    return 'Sorry, there was an error processing your image.';
   }
 }
