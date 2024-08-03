@@ -30,33 +30,47 @@ interface PrescriptionAnalysisResult {
   medicines: Medicine[];
 }
 
-async function analyzePrescription(base64Data: string | string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
-  console.log(`[Prescription Analysis] Starting analysis. MIME type: ${mimeType}`);
-  console.log(`[Prescription Analysis] Input base64Data (truncated): ${Array.isArray(base64Data) ? base64Data.map(d => d.substring(0, 50) + '...') : base64Data.substring(0, 50) + '...'}`);
+async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64Data: string; mimeType: string }> {
+  console.log('[Upload and Convert] Starting file upload and conversion');
   
-  try {
-    const images = Array.isArray(base64Data) ? base64Data : [base64Data];
-    console.log(`[Prescription Analysis] Number of images to analyze: ${images.length}`);
-    
-    const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-prescription`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images, mimeType })
-    });
-    
-    if (!analyzeResponse.ok) {
-      const errorText = await analyzeResponse.text();
-      console.error(`[Prescription Analysis] Failed with status ${analyzeResponse.status}. Error: ${errorText}`);
-      throw new Error(`Analysis failed with status ${analyzeResponse.status}. Error: ${errorText}`);
-    }
-    
-    const analysisResults: PrescriptionAnalysisResult[] = await analyzeResponse.json();
-    console.log("[Prescription Analysis] Analysis results:", JSON.stringify(analysisResults, null, 2));
-    return analysisResults;
-  } catch (error) {
-    console.error('[Prescription Analysis] Error:', error);
-    throw error;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${BASE_URL}/api/upload-and-convert`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Upload and Convert] Failed with status ${response.status}. Error: ${errorText}`);
+    throw new Error(`Upload and convert failed with status ${response.status}. Error: ${errorText}`);
   }
+
+  const result = await response.json();
+  console.log('[Upload and Convert] Successfully uploaded and converted file');
+  return result;
+}
+
+async function analyzePrescription(base64Data: string, mimeType: string): Promise<PrescriptionAnalysisResult[]> {
+  console.log(`[Prescription Analysis] Starting analysis. MIME type: ${mimeType}`);
+  console.log(`[Prescription Analysis] Input base64Data (truncated): ${base64Data.substring(0, 50)}...`);
+  
+  const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-prescription`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ images: [base64Data], mimeType })
+  });
+  
+  if (!analyzeResponse.ok) {
+    const errorText = await analyzeResponse.text();
+    console.error(`[Prescription Analysis] Failed with status ${analyzeResponse.status}. Error: ${errorText}`);
+    throw new Error(`Analysis failed with status ${analyzeResponse.status}. Error: ${errorText}`);
+  }
+  
+  const analysisResults: PrescriptionAnalysisResult[] = await analyzeResponse.json();
+  console.log("[Prescription Analysis] Analysis results:", JSON.stringify(analysisResults, null, 2));
+  return analysisResults;
 }
 
 async function storePrescription(results: PrescriptionAnalysisResult[], publicUrl: string): Promise<void> {
@@ -105,24 +119,28 @@ async function storePrescription(results: PrescriptionAnalysisResult[], publicUr
 export async function POST(request: NextRequest) {
   console.log('[POST] Starting prescription processing');
   try {
-    const requestBody = await request.json();
-    console.log('[POST] Received request body:', JSON.stringify(requestBody, null, 2));
+    const formData = await request.formData();
+    console.log('[POST] Received form data keys:', Array.from(formData.keys()));
 
-    const { publicUrl, base64Data, mimeType } = requestBody;
-
-    if (!publicUrl || !base64Data || !mimeType) {
-      console.error('[POST] Missing required data');
-      return NextResponse.json({ error: 'Missing required data' }, { status: 400 });
+    const file = formData.get('file') as File;
+    if (!file) {
+      console.error('[POST] Missing file in form data');
+      return NextResponse.json({ error: 'Missing file' }, { status: 400 });
     }
 
-    console.log(`[POST] Extracted data:`);
-    console.log(`  Public URL: ${publicUrl}`);
-    console.log(`  MIME type: ${mimeType}`);
-    console.log(`  Base64 data (truncated): ${Array.isArray(base64Data) ? base64Data.map(d => d.substring(0, 50) + '...') : base64Data.substring(0, 50) + '...'}`);
+    console.log(`[POST] Received file:`);
+    console.log(`  File name: ${file.name}`);
+    console.log(`  File type: ${file.type}`);
+    console.log(`  File size: ${file.size} bytes`);
 
+    // Step 1: Upload and Convert
+    const { publicUrl, base64Data, mimeType } = await uploadAndConvert(file);
+    console.log(`[POST] File uploaded and converted. Public URL: ${publicUrl}`);
+
+    // Step 2: Analyze Prescription
     const analysisResults = await analyzePrescription(base64Data, mimeType);
-    console.log('[POST] Analysis results:', JSON.stringify(analysisResults, null, 2));
 
+    // Step 3: Store Prescription
     await storePrescription(analysisResults, publicUrl);
 
     console.log('[POST] All processing completed successfully');
@@ -133,7 +151,7 @@ export async function POST(request: NextRequest) {
     console.error('[POST] Error processing prescription:', error);
     return NextResponse.json({ 
       error: 'Error processing prescription', 
-      details: error instanceof Error ? error.message : 'Unknown error' 
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }
