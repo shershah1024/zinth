@@ -62,8 +62,6 @@ async function convertPdfToImages(publicUrl: string): Promise<string[]> {
   }
 
   console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
-  console.log(`[PDF Conversion] First image base64 prefix: ${data.base64_images[0].substring(0, 50)}...`);
-  
   return data.base64_images;
 }
 
@@ -83,29 +81,40 @@ export async function POST(request: NextRequest) {
     const publicUrl = await uploadToSupabase(file);
 
     // Get base64 data
-    let base64Data: string | string[];
-    let mimeType: string = file.type || 'image/png';  // Default to 'image/png' if undefined
+    let base64Data: string | string[] | undefined;
+    let mimeType: string | undefined = file.type;
 
-    if (file.type === 'application/pdf') {
-      // For PDF files, convert to PNG images
-      base64Data = await convertPdfToImages(publicUrl);
-      mimeType = 'image/png';
-      console.log(`[PDF Processing] Converted PDF into ${base64Data.length} PNG images`);
-    } else {
-      // For all other file types, including images and undefined types
-      base64Data = await getBase64(file);
-      if (!file.type) {
+    try {
+      if (file.type === 'application/pdf') {
+        // For PDF files, convert to PNG images
+        base64Data = await convertPdfToImages(publicUrl);
         mimeType = 'image/png';
-        console.log(`[File Processing] File type undefined, setting MIME type to PNG`);
+        console.log(`[PDF Processing] Converted PDF into ${base64Data.length} PNG images`);
       } else {
-        console.log(`[File Processing] Converted file to base64, keeping original MIME type: ${mimeType}`);
+        // For all other file types, including images and undefined types
+        base64Data = await getBase64(file);
+        console.log(`[File Processing] Converted file to base64, original MIME type: ${mimeType || 'undefined'}`);
       }
+    } catch (error) {
+      console.error('[File Processing] Error during file processing:', error);
+      return NextResponse.json({ 
+        error: 'Error processing file', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      }, { status: 500 });
     }
 
-    console.log(`[File Processing] Final MIME type: ${mimeType}`);
+    if (!base64Data) {
+      console.error('[File Processing] base64Data is undefined after processing');
+      return NextResponse.json({ error: 'Failed to process file' }, { status: 500 });
+    }
+
+    console.log(`[File Processing] Final MIME type: ${mimeType || 'image/png'}`);
 
     if (Array.isArray(base64Data)) {
-      console.log(`[File Processing] First image base64 prefix: ${base64Data[0].substring(0, 50)}...`);
+      console.log(`[File Processing] Number of images: ${base64Data.length}`);
+      if (base64Data.length > 0) {
+        console.log(`[File Processing] First image base64 prefix: ${base64Data[0].substring(0, 50)}...`);
+      }
     } else {
       console.log(`[File Processing] File base64 prefix: ${base64Data.substring(0, 50)}...`);
     }
@@ -113,12 +122,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       publicUrl,
       base64Data,
-      mimeType
+      mimeType: mimeType || 'image/png'  // Default to 'image/png' if mimeType is undefined
     });
   } catch (error) {
-    console.error('[Error] Error processing file:', error);
+    console.error('[Error] Error processing prescription:', error);
     return NextResponse.json({ 
-      error: 'Error processing file', 
+      error: 'Error processing prescription', 
       details: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
