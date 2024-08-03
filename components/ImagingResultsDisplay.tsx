@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronUp, Download, FileText, Image as ImageIcon } from "lucide-react"
+import { ChevronDown, ChevronUp, Download, FileText, Image as ImageIcon, Clock } from "lucide-react"
 
 type ImagingResult = {
   id: string;
@@ -20,6 +21,7 @@ interface ImagingResultsDisplayProps {
 
 export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
   const [expandedResults, setExpandedResults] = useState<string[]>([]);
+  const router = useRouter();
 
   const toggleExpand = (id: string) => {
     setExpandedResults(prev =>
@@ -34,6 +36,10 @@ export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const navigateToOlderResults = () => {
+    router.push('/old-imaging-results');
   };
 
   return (
@@ -94,6 +100,18 @@ export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
           </CardFooter>
         </Card>
       ))}
+      <Card>
+        <CardContent className="pt-6">
+          <Button 
+            onClick={navigateToOlderResults} 
+            className="w-full"
+            variant="secondary"
+          >
+            <Clock className="mr-2 h-4 w-4" />
+            View Older Imaging Results
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

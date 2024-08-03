@@ -21,21 +21,21 @@ export async function GET(request: NextRequest) {
       .from('imaging_results')
       .select('*', { count: 'exact' })
       .eq('patient_number', PATIENT_NUMBER)
-      .gte('date', oneYearAgo.toISOString())
+      .lt('date', oneYearAgo.toISOString())
       .order('date', { ascending: false });
 
     if (error) {
-      console.error('Error fetching recent imaging results:', error);
-      return NextResponse.json({ error: 'Failed to fetch recent imaging results' }, { status: 500 });
+      console.error('Error fetching older imaging results:', error);
+      return NextResponse.json({ error: 'Failed to fetch older imaging results' }, { status: 500 });
     }
 
-    console.log(`Fetched ${data?.length} recent records out of ${count} total recent records`);
+    console.log(`Fetched ${data?.length} older records out of ${count} total older records`);
 
     return NextResponse.json({
       data: data,
       fetchedCount: data?.length,
       totalCount: count,
-      message: 'Recent imaging results (within last year) fetched successfully'
+      message: 'Older imaging results (more than a year old) fetched successfully'
     });
 
   } catch (error) {
