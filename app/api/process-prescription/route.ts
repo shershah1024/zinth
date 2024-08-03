@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
+const ANALYZE_PRESCRIPTION_URL = `${BASE_URL}/api/analyze-prescription`;
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +68,7 @@ async function analyzePrescription(base64Data: string[], mimeType: string): Prom
   console.log(`[Prescription Analysis] Starting analysis. MIME type: ${mimeType}`);
   console.log(`[Prescription Analysis] Number of images: ${base64Data.length}`);
   
-  const analyzeResponse = await fetch(PDF_TO_IMAGE_API_URL, {
+  const analyzeResponse = await fetch(ANALYZE_PRESCRIPTION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ images: base64Data, mimeType })
