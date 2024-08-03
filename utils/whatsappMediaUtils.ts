@@ -11,7 +11,7 @@ interface MediaInfo {
   id: string;
 }
 
-export async function getMediaUrl(mediaId: string): Promise<string> {
+export async function getMediaInfo(mediaId: string): Promise<MediaInfo> {
   const url = `https://graph.facebook.com/v20.0/${mediaId}`;
 
   try {
@@ -25,9 +25,9 @@ export async function getMediaUrl(mediaId: string): Promise<string> {
     await handleFetchErrors(response);
 
     const data: MediaInfo = await response.json();
-    return data.url;
+    return data;
   } catch (error) {
-    console.error('Error getting media URL:', error);
+    console.error('Error getting media info:', error);
     throw error;
   }
 }
@@ -50,19 +50,20 @@ export async function downloadMedia(mediaUrl: string): Promise<Buffer> {
   }
 }
 
-export async function downloadAndPrepareMedia(mediaId: string, mimeType: string, originalFilename?: string): Promise<{ buffer: Buffer; filename: string }> {
+export async function downloadAndPrepareMedia(mediaId: string, originalFilename?: string): Promise<{ buffer: Buffer; filename: string; mimeType: string }> {
   try {
-    const mediaUrl = await getMediaUrl(mediaId);
-    const buffer = await downloadMedia(mediaUrl);
+    const mediaInfo = await getMediaInfo(mediaId);
+    const buffer = await downloadMedia(mediaInfo.url);
+    
     let filename = originalFilename || `media_${Date.now()}`;
     
     // If the filename doesn't have an extension, add one based on the MIME type
     if (!filename.includes('.')) {
-      const extension = mimeType.split('/')[1];
+      const extension = mediaInfo.mime_type.split('/')[1];
       filename += `.${extension}`;
     }
     
-    return { buffer, filename };
+    return { buffer, filename, mimeType: mediaInfo.mime_type };
   } catch (error) {
     console.error('Error downloading and preparing media:', error);
     throw error;

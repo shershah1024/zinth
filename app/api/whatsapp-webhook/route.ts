@@ -100,15 +100,14 @@ export async function POST(req: Request) {
 
 async function handleTextMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log('Received text message:', message.text?.body);
-  // Echo the text message back to the user
   return `You said: ${message.text?.body}`;
 }
 
 async function handleAudioMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received audio message:', message.audio?.id);
   try {
-    const { buffer, filename } = await downloadAndPrepareMedia(message.audio?.id as string, message.audio?.mime_type as string);
-    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.audio?.mime_type as string);
+    const { buffer, filename, mimeType } = await downloadAndPrepareMedia(message.audio?.id as string);
+    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, mimeType);
     await sendAudioMessage(sender, mediaId);
     return `Audio received and sent back. Filename: ${filename}`;
   } catch (error) {
@@ -120,8 +119,8 @@ async function handleAudioMessage(message: WhatsAppMessage, sender: string, phon
 async function handleDocumentMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received document:', message.document?.filename);
   try {
-    const { buffer, filename } = await downloadAndPrepareMedia(message.document?.id as string, message.document?.mime_type as string, message.document?.filename);
-    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.document?.mime_type as string);
+    const { buffer, filename, mimeType } = await downloadAndPrepareMedia(message.document?.id as string, message.document?.filename);
+    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, mimeType);
     await sendDocumentMessage(sender, mediaId, filename);
     return `Document received and sent back. Filename: ${filename}`;
   } catch (error) {
@@ -133,8 +132,8 @@ async function handleDocumentMessage(message: WhatsAppMessage, sender: string, p
 async function handleImageMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received image:', message.image?.id);
   try {
-    const { buffer, filename } = await downloadAndPrepareMedia(message.image?.id as string, message.image?.mime_type as string);
-    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.image?.mime_type as string);
+    const { buffer, filename, mimeType } = await downloadAndPrepareMedia(message.image?.id as string);
+    const mediaId = await uploadMedia(phoneNumberId, buffer, filename, mimeType);
     await sendImageMessage(sender, mediaId);
     return `Image received and sent back. Filename: ${filename}`;
   } catch (error) {
