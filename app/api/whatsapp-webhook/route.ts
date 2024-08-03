@@ -143,6 +143,7 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
+  let tempFilePath: string | undefined;
 
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
@@ -150,7 +151,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       throw new Error(`Invalid ${message.type} message structure`);
     }
 
-    let filename: string;
+    let filename: string | undefined;
     if (message.type === 'document' && message.document) {
       filename = message.document.filename;
       console.log(`Processing document: ${filename}`);
@@ -165,50 +166,54 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
     console.log(`Downloaded media. Prepared filename: ${preparedFilename}, Original MIME type: ${mimeType}, Size: ${arrayBuffer.byteLength} bytes`);
 
-    console.log('Calling upload-and-convert API...');
-    const uploadResult = await uploadAndConvertFile(arrayBuffer, preparedFilename, mimeType);
-    console.log('Upload and convert result:', JSON.stringify(uploadResult, null, 2));
+    // Create a temporary file
+    const tempDir = os.tmpdir();
+    tempFilePath = path.join(tempDir, preparedFilename);
+    await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
+    console.log(`Temporary file created at: ${tempFilePath}`);
 
-    // Prepare the payload for the document classification API
-    const classificationPayload = {
-      image: uploadResult.base64_images[0],
-      mimeType: uploadResult.mimeType,
-    };
+    // Create FormData and append the file
+    const formData = new FormData();
+    const fileStream = await fs.readFile(tempFilePath);
+    formData.append('file', new Blob([fileStream], { type: mimeType }), preparedFilename);
 
-    console.log('Payload for document classification API:', JSON.stringify({
-      ...classificationPayload,
-      image: classificationPayload.image.substring(0, 50) + '...' // Truncate for logging
-    }, null, 2));
-
-    console.log('Calling document classification API...');
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    // Get the base URL from environment variables
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!baseUrl) {
-      throw new Error('NEXT_PUBLIC_BASE_URL is not set in environment variables');
+      throw new Error('NEXT_PUBLIC_API_URL is not set in environment variables');
     }
-    const classificationResponse = await fetch(`${baseUrl}/api/find-document-type`, {
+
+    console.log('Calling upload-and-convert API...');
+    // Call the upload-and-convert API with the full URL
+    const response = await fetch(`${baseUrl}/api/upload-and-convert`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(classificationPayload),
+      body: formData,
     });
 
-    if (!classificationResponse.ok) {
-      const errorText = await classificationResponse.text();
-      console.error('Classification API error response:', errorText);
-      throw new Error(`Document classification failed with status ${classificationResponse.status}: ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Upload and convert failed with status ${response.status}. Error: ${errorText}`);
+      throw new Error(`Upload and convert failed with status ${response.status}. Error: ${errorText}`);
     }
 
-    const classificationResult = await classificationResponse.json();
-    console.log('Document classification result:', JSON.stringify(classificationResult, null, 2));
+    const result = await response.json();
+    console.log('Upload and convert result:', JSON.stringify(result, null, 2));
+
+    // Truncate the base64 data for logging
+    let truncatedResult;
+    if (Array.isArray(result.base64_images)) {
+      truncatedResult = result.base64_images.map((img: string) => img.substring(0, 50) + '...');
+    } else {
+      truncatedResult = (result.base64_images as string).substring(0, 50) + '...';
+    }
 
     // Prepare the response message
     let responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received and processed.\n`;
     responseMessage += `Filename: ${preparedFilename}\n`;
-    responseMessage += `Document Type: ${classificationResult.type}\n`;
+    responseMessage += `Public URL: ${result.url}\n`;
     responseMessage += `Original MIME Type: ${mimeType}\n`;
-    responseMessage += `Converted MIME Type: ${uploadResult.mimeType}\n`;
-    responseMessage += `Public URL: ${uploadResult.url}\n`;
+    responseMessage += `Converted MIME Type: ${result.mimeType}\n`;
+    responseMessage += `Truncated result: ${JSON.stringify(truncatedResult)}\n`;
 
     console.log('Final response message:', responseMessage);
 
@@ -216,52 +221,12 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
   } catch (error) {
     console.error(`Error handling ${message.type} message:`, error);
     return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-  }
-}
-
-// Helper function to upload and convert file
-async function uploadAndConvertFile(
-  arrayBuffer: ArrayBuffer, 
-  filename: string, 
-  mimeType: string
-): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
-  console.log(`[File Upload and Conversion] Starting for file: ${filename}, size: ${arrayBuffer.byteLength} bytes, type: ${mimeType}`);
-  
-  try {
-    const blob = new Blob([arrayBuffer], { type: mimeType });
-    console.log(`[File Upload] Blob created successfully. Size: ${blob.size} bytes`);
-
-    const formData = new FormData();
-    formData.append('file', blob, filename);
-
-    const UPLOAD_AND_CONVERT_ENDPOINT = `${process.env.NEXT_PUBLIC_BASE_URL}/api/upload-and-convert`;
-    console.log(`[File Upload] Sending request to: ${UPLOAD_AND_CONVERT_ENDPOINT}`);
-
-    const response = await fetch(UPLOAD_AND_CONVERT_ENDPOINT, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[File Upload and Conversion] Failed with status ${response.status}. Error: ${errorText}`);
-      throw new Error(`File upload and conversion failed with status ${response.status}. Error: ${errorText}`);
+  } finally {
+    // Clean up: delete the temporary file
+    if (tempFilePath) {
+      console.log(`Deleting temporary file: ${tempFilePath}`);
+      await fs.unlink(tempFilePath).catch(console.error);
     }
-
-    const result = await response.json();
-    console.log('[File Upload and Conversion] Successful. Result:', JSON.stringify(result, null, 2));
-
-    // Ensure base64_images is always an array
-    const base64Images = Array.isArray(result.base64_images) ? result.base64_images : [result.base64_images];
-
-    return {
-      url: result.url,
-      base64_images: base64Images,
-      mimeType: result.mimeType
-    };
-  } catch (error) {
-    console.error('[File Upload and Conversion] Error:', error instanceof Error ? error.message : 'Unknown error');
-    throw error;
   }
 }
 
