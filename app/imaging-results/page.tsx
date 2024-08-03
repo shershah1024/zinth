@@ -55,35 +55,46 @@ export default async function ImagingResultsPage() {
   let rawResults: RawImagingResult[] = [];
   let error: string | null = null;
 
+  console.log('Starting to fetch imaging results');
+
   try {
-    // Fetch data from the API route
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-imaging-results`, { 
+    const apiUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-imaging-results`;
+    console.log('Fetching from URL:', apiUrl);
+
+    const response = await fetch(apiUrl, { 
       cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache'
       }
     });
     
+    console.log('Response status:', response.status);
+
     if (!response.ok) {
-      throw new Error('Failed to fetch imaging results');
+      throw new Error(`Failed to fetch imaging results: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
+    console.log('Received data:', JSON.stringify(data, null, 2));
     
     if (!Array.isArray(data)) {
+      console.error('API did not return an array. Received:', typeof data, data);
       throw new Error('API did not return an array');
     }
 
     rawResults = data;
+    console.log(`Received ${rawResults.length} raw results`);
   } catch (e) {
     error = e instanceof Error ? e.message : 'An unknown error occurred';
     console.error('Error fetching imaging results:', error);
   }
 
-  // Format the results
+  console.log('Formatting results');
   const formattedResults = formatImagingResults(rawResults);
+  console.log(`Formatted ${formattedResults.length} results`);
 
   if (error) {
+    console.log('Rendering error page');
     return (
       <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -94,6 +105,7 @@ export default async function ImagingResultsPage() {
     );
   }
 
+  console.log('Rendering results page');
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
