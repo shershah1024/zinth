@@ -13,6 +13,9 @@ if (!BASE_URL) {
   console.warn('BASE_URL is not set in the environment variables. Using default: http://localhost:3000');
 }
 
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
 interface TestComponent {
   component: string;
   value: number | string;
@@ -43,6 +46,7 @@ interface AnthropicResponse {
 interface RequestBody {
   images: string[];
   mimeType: string;
+  publicUrl: string;
 }
 
 async function analyzeMedicalReportBatch(images: string[], mimeType: string): Promise<AnalysisResult[]> {
@@ -63,7 +67,7 @@ async function analyzeMedicalReportBatch(images: string[], mimeType: string): Pr
           items: {
             type: "object",
             properties: {
-              component: { type: "string", description: "Name of the test componen. If it is part of the unire analyis preface the name of the component with 'Urine Test'" },
+              component: { type: "string", description: "Name of the test component. If it is part of the urine analysis preface the name of the component with 'Urine Test'" },
               value: { 
                 oneOf: [
                   { type: "number" },
@@ -144,6 +148,25 @@ async function analyzeMedicalReportBatch(images: string[], mimeType: string): Pr
   return toolUseContent.input;
 }
 
+async function storeResults(results: AnalysisResult[], publicUrl: string): Promise<void> {
+  console.log(`[Result Storage] Storing results for URL: ${publicUrl}`);
+  const endpoint = '/api/store/test-results';
+
+  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ results, publicUrl })
+  });
+  
+  if (!storeResponse.ok) {
+    const errorText = await storeResponse.text();
+    console.error(`[Result Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
+    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
+  }
+
+  console.log(`[Result Storage] Successfully stored results`);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const requestBody: RequestBody = await request.json();
@@ -159,22 +182,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'mimeType is required' }, { status: 400 });
     }
 
-    console.log(`Processing ${requestBody.images.length} images in batches of up to ${MAX_BATCH_SIZE}...`);
-
-    const batchPromises = [];
-    for (let i = 0; i < requestBody.images.length; i += MAX_BATCH_SIZE) {
-      const batch = requestBody.images.slice(i, i + MAX_BATCH_SIZE);
-      batchPromises.push(analyzeMedicalReportBatch(batch, requestBody.mimeType));
+    if (!requestBody.publicUrl) {
+      console.error('Invalid input: publicUrl is missing');
+      return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
-    const batchResults = await Promise.all(batchPromises);
+    console.log(`Processing ${requestBody.images.length} images in batches of up to ${MAX_BATCH_SIZE}...`);
 
-    // Flatten the results from all batches
-    const analysisResults: AnalysisResult[] = batchResults.flat();
+    const analysisResults: AnalysisResult[] = [];
+    for (let i = 0; i < requestBody.images.length; i += MAX_BATCH_SIZE) {
+      const batch = requestBody.images.slice(i, i + MAX_BATCH_SIZE);
+      const batchResults = await analyzeMedicalReportBatch(batch, requestBody.mimeType);
+      analysisResults.push(...batchResults);
+    }
 
     console.log('Analysis Results:', JSON.stringify(analysisResults, null, 2));
 
-    return NextResponse.json({ message: 'Medical reports analyzed successfully', results: analysisResults });
+    // Store the results
+    await storeResults(analysisResults, requestBody.publicUrl);
+
+    return NextResponse.json({ message: 'Medical reports analyzed and stored successfully', results: analysisResults });
   } catch (error) {
     console.error('Error processing medical reports:', error);
     return NextResponse.json({ 
