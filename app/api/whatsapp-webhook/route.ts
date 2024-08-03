@@ -199,16 +199,50 @@ async function classifyDocument(base64Image: string, mimeType: string): Promise<
   return result.type;
 }
 
-async function analyzeImages(base64Images: string[], mimeType: string, analysisUrl: string): Promise<string[]> {
+async function analyzeImagingResult(base64Images: string[], mimeType: string): Promise<string[]> {
   const analysisPromises = base64Images.map(async (base64Image, index) => {
-    const response = await fetch(analysisUrl, {
+    const response = await fetch(IMAGING_ANALYSIS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image: base64Image, mimeType }),
     });
 
     if (!response.ok) {
-      throw new Error(`Analysis for image ${index + 1} failed with status ${response.status}`);
+      throw new Error(`Imaging analysis for image ${index + 1} failed with status ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.analysis;
+  });
+
+  return Promise.all(analysisPromises);
+}
+
+async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string[]> {
+  const response = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ images: base64Images, mimeType, publicUrl }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Health report analysis failed with status ${response.status}`);
+  }
+
+  const result = await response.json();
+  return result.analysis;
+}
+
+async function analyzePrescription(base64Images: string[], mimeType: string): Promise<string[]> {
+  const analysisPromises = base64Images.map(async (base64Image, index) => {
+    const response = await fetch(PRESCRIPTION_ANALYSIS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64Image, mimeType }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Prescription analysis for image ${index + 1} failed with status ${response.status}`);
     }
 
     const result = await response.json();
@@ -252,13 +286,13 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     let analysisResults: string[];
     switch (classificationType) {
       case 'imaging_result':
-        analysisResults = await analyzeImages(base64Images, mimeType, IMAGING_ANALYSIS_URL);
+        analysisResults = await analyzeImagingResult(base64Images, mimeType);
         break;
       case 'health_record':
-        analysisResults = await analyzeImages(base64Images, mimeType, HEALTH_REPORT_ANALYSIS_URL);
+        analysisResults = await analyzeHealthReport(base64Images, mimeType, publicUrl);
         break;
       case 'prescription':
-        analysisResults = await analyzeImages(base64Images, mimeType, PRESCRIPTION_ANALYSIS_URL);
+        analysisResults = await analyzePrescription(base64Images, mimeType);
         break;
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
