@@ -3,6 +3,8 @@
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
+const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
+
 
 import fs from 'fs/promises';
 import path from 'path';
@@ -144,6 +146,41 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 
 
 
+async function convertPdfToImages(publicUrl: string): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
+  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
+
+  const response = await fetch(PDF_TO_IMAGE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url: publicUrl })
+  });
+
+  console.log(`[PDF Conversion] Response status: ${response.status}`);
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
+    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
+  }
+
+  const data = await response.json();
+  console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
+
+  if (!data.base64_images || data.base64_images.length === 0) {
+    console.error('[PDF Conversion] No images returned');
+    throw new Error('PDF conversion returned no images');
+  }
+
+  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
+  return {
+    url: publicUrl,
+    base64_images: data.base64_images,
+    mimeType: 'image/png'  // PDF conversion always results in PNG images
+  };
+}
+
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message from ${sender}:`, message[message.type as 'image' | 'document']?.id);
 
@@ -156,10 +193,32 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     // Use downloadAndUploadMedia function to handle the entire process
     const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
 
-    // Prepare the response with the path and public URL
-    const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and uploaded.
+    let base64Images: string[] = [];
+    let mimeType: string;
+
+    // Check if the file is a PDF
+    if (path.toLowerCase().endsWith('.pdf')) {
+      console.log('Processing PDF file');
+      const conversionResult = await convertPdfToImages(publicUrl);
+      base64Images = conversionResult.base64_images;
+      mimeType = 'image/png'; // Explicitly set to 'image/png' for converted PDFs
+    } else {
+      console.log('Processing non-PDF file');
+      // For non-PDF files, we need to download the file and convert it to base64
+      const response = await fetch(publicUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      base64Images = [base64];
+      mimeType = response.headers.get('content-type') || 'application/octet-stream';
+    }
+
+    // Prepare the response message
+    const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
 Path: ${path}
-Public URL: ${publicUrl}`;
+Public URL: ${publicUrl}
+MIME Type: ${mimeType}
+Number of images: ${base64Images.length}
+Base64 Images: ${base64Images.map((img, index) => `\nImage ${index + 1}: ${img.substring(0, 50)}...`).join('')}`;
 
     return responseMessage;
   } catch (error) {
