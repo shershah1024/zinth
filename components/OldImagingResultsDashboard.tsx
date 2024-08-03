@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Calendar, User, MessageSquare, Download, ChevronDown, ChevronUp, Link } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Calendar, User, MessageSquare, Download, ChevronDown, ChevronUp, Link } from "lucide-react";
 
 interface OldImagingResult {
   id: number;
@@ -43,7 +43,7 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold">Imaging Results Dashboard</CardTitle>
+        <CardTitle className="text-2xl font-bold">Old Imaging Results Dashboard</CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
@@ -90,8 +90,9 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                     <div className="flex justify-end space-x-2">
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="icon"
                         onClick={() => toggleExpand(result.id)}
+                        title={expandedRows.includes(result.id) ? "Collapse" : "Expand"}
                       >
                         {expandedRows.includes(result.id) ? (
                           <ChevronUp className="h-4 w-4" />
@@ -101,19 +102,26 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="icon"
                         onClick={() => handleDownload(result.public_url, `${result.test}-${result.date}.pdf`)}
+                        title="Download"
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      <a
-                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9"
-                        href={result.public_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        asChild
+                        title="View"
                       >
-                        <Link className="h-4 w-4" />
-                      </a>
+                        <a
+                          href={result.public_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Link className="h-4 w-4" />
+                        </a>
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
