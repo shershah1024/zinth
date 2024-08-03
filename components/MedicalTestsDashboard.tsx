@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Activity, X, Search, AlertCircle, Calendar } from 'lucide-react';
+import { Activity, X, Search, AlertCircle } from 'lucide-react';
 
 // Updated types to allow string or number for values
 interface HistoryRecord {
@@ -63,16 +63,9 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
         whileTap={{ scale: 0.98 }}
       >
         <Card 
-          className={`cursor-pointer hover:shadow-lg transition-shadow duration-300 bg-white border-2 ${abnormal ? 'border-red-400' : 'border-green-400'} relative overflow-hidden`}
+          className={`cursor-pointer hover:shadow-lg transition-shadow duration-300 bg-white border-2 ${abnormal ? 'border-red-400' : 'border-green-400'}`}
           onClick={() => handleElementClick(element)}
         >
-          {/* Date highlight */}
-          <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-500 rotate-45 transform origin-bottom-left"></div>
-          <div className="absolute top-0 right-0 p-2 text-white font-semibold flex items-center">
-            <Calendar className="w-4 h-4 mr-1" />
-            <span className="text-xs">{element.latestDate}</span>
-          </div>
-
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 bg-gray-50">
             <h2 className="text-xl font-semibold text-gray-800">{element.name}</h2>
             {abnormal && <AlertCircle className="w-5 h-5 text-red-500" />}
@@ -82,7 +75,8 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
               {formatValue(element.latestValue)} 
               <span className="text-sm font-normal text-gray-500 ml-1">{element.unit}</span>
             </p>
-            <p className="text-sm text-gray-600 mt-2">Normal Range: {element.normalRange}</p>
+            <p className="text-sm text-gray-600 mt-2">Latest: {element.latestDate}</p>
+            <p className="text-sm text-gray-600">Normal Range: {element.normalRange}</p>
           </CardContent>
         </Card>
       </motion.div>
