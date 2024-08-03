@@ -139,7 +139,6 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 }
 
 
-
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
   let tempFilePath: string | undefined;
@@ -173,40 +172,18 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
     console.log(`Temporary file created at: ${tempFilePath}`);
 
-    // Get the base URL from environment variables
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      throw new Error('NEXT_PUBLIC_BASE_URL is not set in environment variables');
-    }
-
-    // Read the file and create a Blob
+    // Create a File object from the temporary file
     const fileBuffer = await fs.readFile(tempFilePath);
-    const blob = new Blob([fileBuffer], { type: mimeType });
-
-    // Create FormData and append the file as a Blob
-    const formData = new FormData();
-    formData.append('file', blob, preparedFilename);
+    const file = new File([fileBuffer], preparedFilename, { type: mimeType });
 
     console.log('Calling upload-and-convert API...');
-    // Call the upload-and-convert API
-    const uploadResponse = await fetch(`${baseUrl}/api/upload-and-convert`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      throw new Error(`Upload and convert failed with status ${uploadResponse.status}: ${errorText}`);
-    }
-
-    const uploadResult = await uploadResponse.json();
+    // Call the upload-and-convert API using the uploadAndConvertFile function
+    const uploadResult = await uploadAndConvertFile(file);
     console.log('Upload and convert result:', JSON.stringify(uploadResult, null, 2));
 
     // Prepare the payload for the document classification API
     const classificationPayload = {
-      image: Array.isArray(uploadResult.base64_images) 
-        ? uploadResult.base64_images[0] 
-        : uploadResult.base64_images,
+      image: uploadResult.base64_images[0], // We know this is always an array now
       mimeType: uploadResult.mimeType,
     };
 
@@ -217,6 +194,10 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     console.log('Calling document classification API...');
     // Call the document classification API
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      throw new Error('NEXT_PUBLIC_BASE_URL is not set in environment variables');
+    }
     const classificationResponse = await fetch(`${baseUrl}/api/find-document-type`, {
       method: 'POST',
       headers: {
@@ -257,6 +238,37 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
   }
 }
 
+// Helper function to upload and convert file
+async function uploadAndConvertFile(file: File): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
+  console.log(`[File Upload and Conversion] Starting for file: ${file.name}`);
+  
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const UPLOAD_AND_CONVERT_ENDPOINT = `${process.env.NEXT_PUBLIC_BASE_URL}/api/upload-and-convert`;
+  const response = await fetch(UPLOAD_AND_CONVERT_ENDPOINT, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[File Upload and Conversion] Failed with status ${response.status}. Error: ${errorText}`);
+    throw new Error(`File upload and conversion failed with status ${response.status}. Error: ${errorText}`);
+  }
+
+  const result = await response.json();
+  console.log(`[File Upload and Conversion] Completed successfully. URL: ${result.url}, MIME type: ${result.mimeType}`);
+  
+  // Ensure base64_images is always an array
+  const base64Images = Array.isArray(result.base64_images) ? result.base64_images : [result.base64_images];
+  
+  return {
+    url: result.url,
+    base64_images: base64Images,
+    mimeType: result.mimeType
+  };
+}
 async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   if (message.interactive?.type === 'button_reply') {
     console.log('Received button reply:', message.interactive.button_reply);
