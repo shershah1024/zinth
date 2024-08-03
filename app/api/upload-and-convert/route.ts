@@ -54,7 +54,20 @@ async function convertPdfToImages(publicUrl: string): Promise<{ url: string; bas
     throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
   }
 
-  const data = await response.json();
+  const rawData = await response.text();
+  console.log('[PDF Conversion] Raw response data:');
+  console.log(rawData);
+
+  let data;
+  try {
+    data = JSON.parse(rawData);
+  } catch (error) {
+    console.error('[PDF Conversion] Failed to parse JSON response:', error);
+    throw new Error('Failed to parse PDF conversion response');
+  }
+
+  console.log('[PDF Conversion] Parsed data:');
+  console.log(JSON.stringify(data, null, 2));
 
   if (!data.base64_images || data.base64_images.length === 0) {
     console.error('[PDF Conversion] No images returned');
@@ -62,7 +75,14 @@ async function convertPdfToImages(publicUrl: string): Promise<{ url: string; bas
   }
 
   console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
-  return data;
+  console.log(`[PDF Conversion] MIME type: ${data.mimeType || 'Not provided'}`);
+  console.log(`[PDF Conversion] URL: ${data.url}`);
+
+  return {
+    url: data.url,
+    base64_images: data.base64_images,
+    mimeType: data.mimeType || 'image/png'  // Default to 'image/png' if mimeType is not provided
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -97,16 +117,16 @@ export async function POST(request: NextRequest) {
       console.log(`[File Processing] Converted file to base64. MIME type: ${result.mimeType}`);
     }
 
-    console.log(`[File Processing] Final MIME type: ${result.mimeType}`);
-
-    if (Array.isArray(result.base64_images)) {
-      console.log(`[File Processing] Number of images: ${result.base64_images.length}`);
-      if (result.base64_images.length > 0) {
-        console.log(`[File Processing] First image base64 prefix: ${result.base64_images[0].substring(0, 50)}...`);
+    console.log(`[File Processing] Final result:`);
+    console.log(JSON.stringify(result, (key, value) => {
+      if (key === 'base64_images' && Array.isArray(value)) {
+        return value.map(img => img.substring(0, 50) + '...');
       }
-    } else {
-      console.log(`[File Processing] File base64 prefix: ${result.base64_images.substring(0, 50)}...`);
-    }
+      if (key === 'base64_images' && typeof value === 'string') {
+        return value.substring(0, 50) + '...';
+      }
+      return value;
+    }, 2));
 
     return NextResponse.json(result);
   } catch (error) {
