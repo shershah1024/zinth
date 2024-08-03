@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { sendMessage, sendImageMessage, sendDocumentMessage } from '@/utils/whatsappUtils';
-import { downloadAndPrepareMedia, uploadMedia } from '@/utils/whatsappMediaUtils';
+import { downloadAndPrepareMedia } from '@/utils/whatsappMediaUtils';
 
 // Types
 interface WhatsAppMessage {
@@ -99,7 +99,6 @@ export async function POST(req: Request) {
 
     const message = value.messages[0];
     const sender = value.contacts[0].wa_id;
-    const phoneNumberId = value.metadata.phone_number_id;
 
     let response: string;
 
@@ -109,7 +108,7 @@ export async function POST(req: Request) {
         break;
       case 'image':
       case 'document':
-        response = await handleMediaMessage(message, sender, phoneNumberId);
+        response = await handleMediaMessage(message, sender);
         break;
       case 'interactive':
         response = await handleInteractiveMessage(message, sender);
@@ -136,7 +135,7 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
   return "Received an empty text message";
 }
 
-async function handleMediaMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
+async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
@@ -144,24 +143,21 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string, phon
       throw new Error(`Invalid ${message.type} message structure`);
     }
 
-    let filename: string;
-    let mimeType: string;
+    let filename: string | undefined;
 
     if (message.type === 'document' && message.document) {
       filename = message.document.filename;
-      mimeType = message.document.mime_type;
     } else if (message.type === 'image' && message.image) {
-      const fileExtension = message.image.mime_type.split('/')[1];
-      filename = `image_${Date.now()}.${fileExtension}`;
-      mimeType = message.image.mime_type;
+      // For images, we'll let the downloadAndPrepareMedia function generate a filename
+      filename = undefined;
     } else {
       throw new Error(`Unsupported media type: ${message.type}`);
     }
 
-    const { buffer } = await downloadAndPrepareMedia(mediaInfo.id, filename);
+    const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
     
-    // Create a File object from the buffer
-    const file = new File([buffer], filename, { type: mimeType });
+    // Create a File object from the ArrayBuffer
+    const file = new File([arrayBuffer], preparedFilename, { type: mimeType });
 
     // Create FormData and append the file
     const formData = new FormData();
@@ -193,18 +189,11 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string, phon
       truncatedResult = (result.base64_images as string).substring(0, 50) + '...';
     }
 
-    // Send the original file back to the user
-    if (message.type === 'image') {
-      await sendImageMessage(sender, await uploadMedia(phoneNumberId, buffer, filename, mimeType));
-    } else {
-      await sendDocumentMessage(sender, await uploadMedia(phoneNumberId, buffer, filename, mimeType), filename);
-    }
-
     // Prepare the response with public URL and MIME type
     const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received and processed. 
-Filename: ${filename}
+Filename: ${preparedFilename}
 Public URL: ${result.url}
-MIME Type: ${result.mimeType}
+MIME Type: ${mimeType}
 Truncated result: ${JSON.stringify(truncatedResult)}`;
 
     return responseMessage;
