@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
     }
     
     const { publicUrl, base64Data, mimeType } = await uploadResponse.json();
+    console.log("mime type is", mimeType)
     console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}`);
 
     const images = Array.isArray(base64Data) ? base64Data : [base64Data];
