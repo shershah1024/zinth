@@ -55,8 +55,7 @@ async function convertPdfToImages(publicUrl: string): Promise<{ url: string; bas
   }
 
   const rawData = await response.text();
-  console.log('[PDF Conversion] Raw response data:');
-  console.log(rawData);
+  console.log('[PDF Conversion] Raw response data:', rawData);
 
   let data;
   try {
@@ -66,8 +65,7 @@ async function convertPdfToImages(publicUrl: string): Promise<{ url: string; bas
     throw new Error('Failed to parse PDF conversion response');
   }
 
-  console.log('[PDF Conversion] Parsed data:');
-  console.log(JSON.stringify(data, null, 2));
+  console.log('[PDF Conversion] Parsed data:', JSON.stringify(data, null, 2));
 
   if (!data.base64_images || data.base64_images.length === 0) {
     console.error('[PDF Conversion] No images returned');
@@ -104,7 +102,13 @@ export async function POST(request: NextRequest) {
 
     if (file.type === 'application/pdf') {
       // For PDF files, convert to images and use the MIME type from the endpoint
-      result = await convertPdfToImages(publicUrl);
+      const pdfConversionResult = await convertPdfToImages(publicUrl);
+      console.log('[PDF Conversion] Raw result:', JSON.stringify(pdfConversionResult, null, 2));
+      result = {
+        url: pdfConversionResult.url,
+        base64_images: pdfConversionResult.base64_images,
+        mimeType: pdfConversionResult.mimeType || 'image/png'  // Default to 'image/png' if mimeType is not provided
+      };
       console.log(`[PDF Processing] Converted PDF into ${result.base64_images.length} images. MIME type: ${result.mimeType}`);
     } else {
       // For all other file types, use the actual MIME type of the file
@@ -117,8 +121,7 @@ export async function POST(request: NextRequest) {
       console.log(`[File Processing] Converted file to base64. MIME type: ${result.mimeType}`);
     }
 
-    console.log(`[File Processing] Final result:`);
-    console.log(JSON.stringify(result, (key, value) => {
+    console.log(`[File Processing] Final result:`, JSON.stringify(result, (key, value) => {
       if (key === 'base64_images' && Array.isArray(value)) {
         return value.map(img => img.substring(0, 50) + '...');
       }
@@ -130,9 +133,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[Error] Error processing prescription:', error);
+    console.error('[Error] Error processing file:', error);
     return NextResponse.json({ 
-      error: 'Error processing prescription', 
+      error: 'Error processing file', 
       details: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }

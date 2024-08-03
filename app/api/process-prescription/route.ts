@@ -43,8 +43,11 @@ async function uploadAndConvertFile(formData: FormData): Promise<{ publicUrl: st
     throw new Error(`Upload failed with status ${uploadResponse.status}`);
   }
   
-  const { publicUrl, base64Data, mimeType } = await uploadResponse.json();
-  console.log(`[File Upload] File uploaded and converted successfully. Public URL: ${publicUrl}, MIME type: ${mimeType}`);
+  const responseData = await uploadResponse.json();
+  console.log('[File Upload] Raw response from upload-file-supabase:', JSON.stringify(responseData, null, 2));
+  
+  const { publicUrl, base64_images: base64Data, mimeType } = responseData;
+  console.log(`[File Upload] File uploaded and converted successfully. Public URL: ${publicUrl}, MIME type: ${mimeType}, Base64 data type: ${typeof base64Data}, Length: ${Array.isArray(base64Data) ? base64Data.length : base64Data.length}`);
   return { publicUrl, base64Data, mimeType };
 }
 
@@ -61,7 +64,7 @@ async function analyzePrescription(publicUrl: string, base64Data: string | strin
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         publicUrl, 
-        images, // Send the array of images
+        images,
         mimeType 
       })
     });
@@ -136,7 +139,8 @@ export async function POST(request: NextRequest) {
 
     // Upload file and get base64 data
     const { publicUrl, base64Data, mimeType } = await uploadAndConvertFile(formData);
-    console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}, MIME type: ${mimeType}, Base64 data type: ${typeof base64Data}, Length: ${Array.isArray(base64Data) ? base64Data.length : base64Data.length}`);
+    console.log('[POST] Data received from uploadAndConvertFile:');
+    console.log(JSON.stringify({ publicUrl, mimeType, base64DataType: typeof base64Data, base64DataLength: Array.isArray(base64Data) ? base64Data.length : base64Data.length }, null, 2));
 
     const analysisResults = await analyzePrescription(publicUrl, base64Data, mimeType);
 
