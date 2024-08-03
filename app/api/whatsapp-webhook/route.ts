@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
+const DOCUMENT_CLASSIFICATION_URL = '/api/find-document-type'; // Update this if the endpoint URL is different
+
 
 
 import fs from 'fs/promises';
@@ -181,6 +183,23 @@ async function convertPdfToImages(publicUrl: string): Promise<{ url: string; bas
   };
 }
 
+async function classifyDocument(base64Image: string, mimeType: string): Promise<string> {
+  const response = await fetch(DOCUMENT_CLASSIFICATION_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ image: base64Image, mimeType }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Document classification failed with status ${response.status}`);
+  }
+
+  const result = await response.json();
+  return result.type;
+}
+
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message from ${sender}:`, message[message.type as 'image' | 'document']?.id);
 
@@ -212,12 +231,16 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       mimeType = response.headers.get('content-type') || 'application/octet-stream';
     }
 
+    // Classify the document
+    const classificationType = await classifyDocument(base64Images[0], mimeType);
+
     // Prepare the response message
     const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
 Path: ${path}
 Public URL: ${publicUrl}
 MIME Type: ${mimeType}
 Number of images: ${base64Images.length}
+Document Classification: ${classificationType}
 Base64 Images: ${base64Images.map((img, index) => `\nImage ${index + 1}: ${img.substring(0, 50)}...`).join('')}`;
 
     return responseMessage;
