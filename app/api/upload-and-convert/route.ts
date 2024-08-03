@@ -19,7 +19,7 @@ async function uploadToSupabase(file: File): Promise<string> {
   if (error) throw error;
 
   const { data: publicUrlData } = supabase.storage
-    .from('imaging-results')
+    .from('imaging-files')
     .getPublicUrl(data.path);
 
   return publicUrlData.publicUrl;
