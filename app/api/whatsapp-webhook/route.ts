@@ -152,20 +152,24 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     if (message.type === 'document' && message.document) {
       filename = message.document.filename;
+      console.log(`Processing document: ${filename}`);
     } else if (message.type === 'image' && message.image) {
       const fileExtension = message.image.mime_type.split('/')[1];
       filename = `image_${Date.now()}.${fileExtension}`;
       isImage = true;
+      console.log(`Processing image: ${filename}`);
     } else {
       throw new Error(`Unsupported media type: ${message.type}`);
     }
 
     const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
+    console.log(`Downloaded media. Prepared filename: ${preparedFilename}, Original MIME type: ${mimeType}`);
 
     // Create a temporary file
     const tempDir = os.tmpdir();
     tempFilePath = path.join(tempDir, preparedFilename);
     await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
+    console.log(`Temporary file created at: ${tempFilePath}`);
 
     // Get the base URL from environment variables
     const baseUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -178,6 +182,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     const fileStream = await fs.readFile(tempFilePath);
     formData.append('file', new Blob([fileStream]), preparedFilename);
 
+    console.log('Calling upload-and-convert API...');
     // Call the upload-and-convert API
     const uploadResponse = await fetch(`${baseUrl}/api/upload-and-convert`, {
       method: 'POST',
@@ -189,20 +194,31 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     }
 
     const uploadResult = await uploadResponse.json();
+    console.log('Upload and convert result:', JSON.stringify(uploadResult, null, 2));
 
     // Determine the MIME type for classification
     const classificationMimeType = isImage ? mimeType : 'image/png';
+    console.log(`Classification MIME type: ${classificationMimeType}`);
 
+    // Prepare the payload for the document classification API
+    const classificationPayload = {
+      image: uploadResult.base64_images,
+      mimeType: classificationMimeType,
+    };
+    console.log('Payload for document classification API:');
+    console.log(JSON.stringify({
+      ...classificationPayload,
+      image: classificationPayload.image.substring(0, 100) + '...' // Truncate the base64 string for logging
+    }, null, 2));
+
+    console.log('Calling document classification API...');
     // Call the document classification API
     const classificationResponse = await fetch(`${baseUrl}/api/find-document-type`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        image: uploadResult.base64_images,
-        mimeType: classificationMimeType,
-      }),
+      body: JSON.stringify(classificationPayload),
     });
 
     if (!classificationResponse.ok) {
@@ -210,6 +226,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     }
 
     const classificationResult = await classificationResponse.json();
+    console.log('Document classification result:', JSON.stringify(classificationResult, null, 2));
 
     // Prepare the response message
     let responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received and processed.\n`;
@@ -224,6 +241,8 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     const truncatedBase64 = uploadResult.base64_images.substring(0, 50) + '...';
     responseMessage += `Truncated Image Data: ${truncatedBase64}`;
 
+    console.log('Final response message:', responseMessage);
+
     return responseMessage;
   } catch (error) {
     console.error(`Error handling ${message.type} message:`, error);
@@ -231,6 +250,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
   } finally {
     // Clean up: delete the temporary file
     if (tempFilePath) {
+      console.log(`Deleting temporary file: ${tempFilePath}`);
       await fs.unlink(tempFilePath).catch(console.error);
     }
   }
