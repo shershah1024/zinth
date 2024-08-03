@@ -148,12 +148,14 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     }
 
     let filename: string | undefined;
+    let isImage = false;
 
     if (message.type === 'document' && message.document) {
       filename = message.document.filename;
     } else if (message.type === 'image' && message.image) {
       const fileExtension = message.image.mime_type.split('/')[1];
       filename = `image_${Date.now()}.${fileExtension}`;
+      isImage = true;
     } else {
       throw new Error(`Unsupported media type: ${message.type}`);
     }
@@ -188,8 +190,8 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     const uploadResult = await uploadResponse.json();
 
-    // Determine the MIME type to send to the classification API
-    const classificationMimeType = mimeType.toLowerCase() === 'application/pdf' ? 'image/png' : uploadResult.mimeType;
+    // Determine the MIME type for classification
+    const classificationMimeType = isImage ? mimeType : 'image/png';
 
     // Call the document classification API
     const classificationResponse = await fetch(`${baseUrl}/api/find-document-type`, {
@@ -198,7 +200,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        image: uploadResult.base64_images[0], // Assuming the first image if there are multiple
+        image: uploadResult.base64_images,
         mimeType: classificationMimeType,
       }),
     });
@@ -214,11 +216,12 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     responseMessage += `Filename: ${preparedFilename}\n`;
     responseMessage += `Document Type: ${classificationResult.type}\n`;
     responseMessage += `Original MIME Type: ${mimeType}\n`;
+    responseMessage += `Upload Result MIME Type: ${uploadResult.mimeType}\n`;
     responseMessage += `Classification MIME Type: ${classificationMimeType}\n`;
     responseMessage += `Public URL: ${uploadResult.url}\n`;
 
     // Truncate the base64 image data for the response
-    const truncatedBase64 = uploadResult.base64_images[0].substring(0, 50) + '...';
+    const truncatedBase64 = uploadResult.base64_images.substring(0, 50) + '...';
     responseMessage += `Truncated Image Data: ${truncatedBase64}`;
 
     return responseMessage;
