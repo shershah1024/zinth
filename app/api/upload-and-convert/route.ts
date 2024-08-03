@@ -26,8 +26,21 @@ async function uploadToSupabase(file: File): Promise<string> {
     .from('all_file')
     .getPublicUrl(data.path);
 
-  console.log(`[Supabase Upload] File uploaded successfully. Public URL: ${publicUrlData.publicUrl}`);
-  return publicUrlData.publicUrl;
+  const publicUrl = publicUrlData.publicUrl;
+  console.log(`[Supabase Upload] File uploaded successfully. Public URL: ${publicUrl}`);
+
+  // Verify that the URL is publicly accessible
+  try {
+    const verifyResponse = await fetch(publicUrl, { method: 'HEAD' });
+    if (!verifyResponse.ok) {
+      throw new Error(`URL is not publicly accessible: ${verifyResponse.status}`);
+    }
+  } catch (error) {
+    console.error('[Supabase Upload] Error verifying public URL:', error);
+    throw new Error('Failed to verify public URL accessibility');
+  }
+
+  return publicUrl;
 }
 
 async function getBase64(file: File): Promise<string> {
