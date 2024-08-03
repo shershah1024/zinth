@@ -1,32 +1,13 @@
-import React from 'react';
+// app/old-imaging-results/page.tsx
 import { createClient } from '@supabase/supabase-js';
-import { format } from 'date-fns';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChevronDown, Download, Eye, Calendar, User, MessageSquare } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import OldImagingResultsDashboard from '@/components/OldImagingResultsDashboard';
 
-// Supabase setup
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const PATIENT_NUMBER = '919885842349';
-
-// Types
-interface ImagingResult {
-  id: number;
-  created_at: string;
-  patient_number: string;
-  date: string;
-  test: string;
-  comments: string;
-  public_url: string;
-  doctor: string;
-}
 
 async function getOldImagingResults() {
   const oneYearAgo = new Date();
@@ -53,69 +34,7 @@ export default async function OldImagingResultsPage() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Old Imaging Results</h1>
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold">Old Imaging Results Dashboard</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">Date</TableHead>
-                <TableHead>Test</TableHead>
-                <TableHead>Doctor</TableHead>
-                <TableHead>Comments</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {oldResults.map((result: ImagingResult) => (
-                <TableRow key={result.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{format(new Date(result.date), 'MMM dd, yyyy')}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{result.test}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${result.doctor}`} />
-                        <AvatarFallback>{result.doctor.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span>{result.doctor}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate max-w-[200px]" title={result.comments}>
-                        {result.comments}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="outline" size="icon" title="Expand">
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon" title="View">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon" title="Download">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <OldImagingResultsDashboard results={oldResults} />
     </div>
   );
 }
