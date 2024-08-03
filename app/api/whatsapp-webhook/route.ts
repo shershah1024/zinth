@@ -1,8 +1,8 @@
-// app/api/whatsapp-webhook/route.ts
+// app/api/webhook/route.ts
 
 import { NextResponse } from 'next/server';
 import { sendMessage, sendAudioMessage, sendDocumentMessage, sendImageMessage } from '@/utils/whatsappUtils';
-import { downloadAndSendMedia, uploadMedia } from '@/utils/whatsappMediaUtils';
+import { downloadAndPrepareMedia, uploadMedia } from '@/utils/whatsappMediaUtils';
 
 // Types
 interface WhatsAppMessage {
@@ -81,6 +81,9 @@ export async function POST(req: Request) {
       case 'image':
         response = await handleImageMessage(message, sender, phoneNumberId);
         break;
+      case 'interactive':
+        response = await handleInteractiveMessage(message, sender);
+        break;
       default:
         response = "Unsupported message type";
     }
@@ -104,7 +107,7 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 async function handleAudioMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received audio message:', message.audio?.id);
   try {
-    const { buffer, filename } = await downloadAndSendMedia(message.audio?.id as string, message.audio?.mime_type as string);
+    const { buffer, filename } = await downloadAndPrepareMedia(message.audio?.id as string, message.audio?.mime_type as string);
     const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.audio?.mime_type as string);
     await sendAudioMessage(sender, mediaId);
     return `Audio received and sent back. Filename: ${filename}`;
@@ -117,7 +120,7 @@ async function handleAudioMessage(message: WhatsAppMessage, sender: string, phon
 async function handleDocumentMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received document:', message.document?.filename);
   try {
-    const { buffer, filename } = await downloadAndSendMedia(message.document?.id as string, message.document?.mime_type as string);
+    const { buffer, filename } = await downloadAndPrepareMedia(message.document?.id as string, message.document?.mime_type as string, message.document?.filename);
     const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.document?.mime_type as string);
     await sendDocumentMessage(sender, mediaId, filename);
     return `Document received and sent back. Filename: ${filename}`;
@@ -130,7 +133,7 @@ async function handleDocumentMessage(message: WhatsAppMessage, sender: string, p
 async function handleImageMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log('Received image:', message.image?.id);
   try {
-    const { buffer, filename } = await downloadAndSendMedia(message.image?.id as string, message.image?.mime_type as string);
+    const { buffer, filename } = await downloadAndPrepareMedia(message.image?.id as string, message.image?.mime_type as string);
     const mediaId = await uploadMedia(phoneNumberId, buffer, filename, message.image?.mime_type as string);
     await sendImageMessage(sender, mediaId);
     return `Image received and sent back. Filename: ${filename}`;
@@ -138,4 +141,12 @@ async function handleImageMessage(message: WhatsAppMessage, sender: string, phon
     console.error('Error handling image message:', error);
     return 'Sorry, there was an error processing your image.';
   }
+}
+
+async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
+  if (message.interactive?.type === 'button_reply') {
+    console.log('Received button reply:', message.interactive.button_reply);
+    return `You clicked: ${message.interactive.button_reply.title}`;
+  }
+  return 'Unsupported interactive message type';
 }
