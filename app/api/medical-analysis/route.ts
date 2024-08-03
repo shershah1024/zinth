@@ -10,8 +10,8 @@ if (!BASE_URL) {
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
-async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64Images: string[]; mimeType: string }> {
-  console.log('[Upload and Convert] Starting file upload and conversion');
+async function uploadAndConvertPdf(file: File): Promise<{ publicUrl: string; base64Images: string[]; }> {
+  console.log('[Upload and Convert] Starting PDF upload and conversion');
   
   const formData = new FormData();
   formData.append('file', file);
@@ -28,9 +28,9 @@ async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64
   }
 
   const result = await response.json();
-  console.log('[Upload and Convert] Successfully uploaded and converted file');
+  console.log('[Upload and Convert] Successfully uploaded and converted PDF');
 
-  if (!result.url || !result.base64_images || !result.mimeType) {
+  if (!result.url || !result.base64_images) {
     console.error('[Upload and Convert] Invalid response structure');
     throw new Error('Invalid response from upload and convert');
   }
@@ -38,8 +38,26 @@ async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64
   return {
     publicUrl: result.url,
     base64Images: result.base64_images,
-    mimeType: result.mimeType
   };
+}
+
+async function processFile(file: File, publicUrl: string): Promise<{ base64Images: string[]; mimeType: string; }> {
+  console.log(`[File Processing] Processing file: ${file.name}, type: ${file.type}`);
+  
+  if (file.type === 'application/pdf') {
+    const { base64Images } = await uploadAndConvertPdf(file);
+    return {
+      base64Images: base64Images,
+      mimeType: 'image/png'
+    };
+  } else {
+    const fileBuffer = await file.arrayBuffer();
+    const base64Image = Buffer.from(fileBuffer).toString('base64');
+    return {
+      base64Images: [base64Image],
+      mimeType: file.type
+    };
+  }
 }
 
 async function analyzeImages(images: string[], mimeType: string): Promise<{ results: AnalysisResult[] }> {
@@ -98,11 +116,24 @@ export async function POST(request: NextRequest) {
 
     console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
 
-    // Upload and convert file
-    const { publicUrl, base64Images, mimeType } = await uploadAndConvert(file);
-    console.log(`[POST] File uploaded and converted. Public URL: ${publicUrl}`);
+    // Upload file
+    console.log('[POST] Uploading file');
+    const uploadResponse = await fetch(`${BASE_URL}/api/upload-file-supabase`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!uploadResponse.ok) {
+      console.error(`[POST] Upload failed with status ${uploadResponse.status}`);
+      throw new Error(`Upload failed with status ${uploadResponse.status}`);
+    }
+    
+    const { publicUrl } = await uploadResponse.json();
+    console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}`);
 
-    // Analyze images
+    const { base64Images, mimeType } = await processFile(file, publicUrl);
+    console.log(`[POST] File processed into ${base64Images.length} images`);
+
     const analysisResults = await analyzeImages(base64Images, mimeType);
 
     // Store results
