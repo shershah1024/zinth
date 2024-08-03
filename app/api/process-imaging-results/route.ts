@@ -1,9 +1,8 @@
-// app/api/process-imaging-results/route.ts
+//app/api/process-imaging-results/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
@@ -16,52 +15,6 @@ interface ImagingResult {
   test_date: string;
   observations: string;
   doctor_name: string;
-}
-
-async function convertPdfToImages(publicUrl: string): Promise<string[]> {
-  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
-
-  const response = await fetch(`${PDF_TO_IMAGE_API_URL}?url=${encodeURIComponent(publicUrl)}`, {
-    method: 'POST'
-  });
-
-  console.log(`[PDF Conversion] Response status: ${response.status}`);
-
-  if (!response.ok) {
-    const responseText = await response.text();
-    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
-    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
-  }
-
-  const data = await response.json();
-
-  if (!data.base64_images || data.base64_images.length === 0) {
-    console.error('[PDF Conversion] No images returned');
-    throw new Error('PDF conversion returned no images');
-  }
-
-  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
-  return data.base64_images;
-}
-
-async function processFile(file: File, publicUrl: string): Promise<{ base64Images: string[]; mimeType: string; }> {
-  console.log(`[File Processing] Processing file: ${file.name}, type: ${file.type}`);
-  
-  if (file.type === 'application/pdf') {
-    const images = await convertPdfToImages(publicUrl);
-    return {
-      base64Images: images,
-      mimeType: 'image/png'
-    };
-  } else {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Image = buffer.toString('base64');
-    return {
-      base64Images: [base64Image],
-      mimeType: file.type
-    };
-  }
 }
 
 async function analyzeImagingResult(images: string[], mimeType: string, doctorName: string): Promise<ImagingResult[]> {
@@ -135,22 +88,21 @@ export async function POST(request: NextRequest) {
     console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
     console.log(`[POST] Processing for Patient: ${patientNumber}, Doctor: ${doctorName}`);
 
-    // Upload file
-    console.log('[POST] Uploading file');
-    const uploadResponse = await fetch(`${BASE_URL}/api/upload-file-supabase`, {
+    // Use the new upload-and-convert route
+    const uploadConvertResponse = await fetch(`${BASE_URL}/api/upload-and-convert`, {
       method: 'POST',
       body: formData
     });
     
-    if (!uploadResponse.ok) {
-      console.error(`[POST] Upload failed with status ${uploadResponse.status}`);
-      throw new Error(`Upload failed with status ${uploadResponse.status}`);
+    if (!uploadConvertResponse.ok) {
+      console.error(`[POST] Upload and convert failed with status ${uploadConvertResponse.status}`);
+      throw new Error(`Upload and convert failed with status ${uploadConvertResponse.status}`);
     }
     
-    const { publicUrl } = await uploadResponse.json();
-    console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}`);
+    const { publicUrl, base64Data, mimeType } = await uploadConvertResponse.json();
+    console.log(`[POST] File uploaded and converted successfully. Public URL: ${publicUrl}`);
 
-    const { base64Images, mimeType } = await processFile(file, publicUrl);
+    const base64Images = Array.isArray(base64Data) ? base64Data : [base64Data];
     console.log(`[POST] File processed into ${base64Images.length} images`);
 
     const analysisResults = await analyzeImagingResult(base64Images, mimeType, doctorName);
