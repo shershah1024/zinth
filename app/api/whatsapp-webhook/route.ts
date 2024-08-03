@@ -7,6 +7,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
+
 // Types
 interface WhatsAppMessage {
   from: string;
@@ -139,25 +140,23 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 }
 
 
+
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
-  let tempFilePath: string | undefined;
+
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
     if (!mediaInfo) {
       throw new Error(`Invalid ${message.type} message structure`);
     }
 
-    let filename: string | undefined;
-    let isImage = false;
-
+    let filename: string;
     if (message.type === 'document' && message.document) {
       filename = message.document.filename;
       console.log(`Processing document: ${filename}`);
     } else if (message.type === 'image' && message.image) {
       const fileExtension = message.image.mime_type.split('/')[1];
       filename = `image_${Date.now()}.${fileExtension}`;
-      isImage = true;
       console.log(`Processing image: ${filename}`);
     } else {
       throw new Error(`Unsupported media type: ${message.type}`);
@@ -166,19 +165,9 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
     console.log(`Downloaded media. Prepared filename: ${preparedFilename}, Original MIME type: ${mimeType}`);
 
-    // Create a temporary file
-    const tempDir = os.tmpdir();
-    tempFilePath = path.join(tempDir, preparedFilename);
-    await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
-    console.log(`Temporary file created at: ${tempFilePath}`);
-
-    // Create a File object from the temporary file
-    const fileBuffer = await fs.readFile(tempFilePath);
-    const file = new File([fileBuffer], preparedFilename, { type: mimeType });
-
     console.log('Calling upload-and-convert API...');
     // Call the upload-and-convert API using the uploadAndConvertFile function
-    const uploadResult = await uploadAndConvertFile(file);
+    const uploadResult = await uploadAndConvertFile(arrayBuffer, preparedFilename, mimeType);
     console.log('Upload and convert result:', JSON.stringify(uploadResult, null, 2));
 
     // Prepare the payload for the document classification API
@@ -229,21 +218,20 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
   } catch (error) {
     console.error(`Error handling ${message.type} message:`, error);
     return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-  } finally {
-    // Clean up: delete the temporary file
-    if (tempFilePath) {
-      console.log(`Deleting temporary file: ${tempFilePath}`);
-      await fs.unlink(tempFilePath).catch(console.error);
-    }
   }
 }
 
 // Helper function to upload and convert file
-async function uploadAndConvertFile(file: File): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
-  console.log(`[File Upload and Conversion] Starting for file: ${file.name}`);
+async function uploadAndConvertFile(
+  arrayBuffer: ArrayBuffer, 
+  filename: string, 
+  mimeType: string
+): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
+  console.log(`[File Upload and Conversion] Starting for file: ${filename}`);
   
+  const blob = new Blob([arrayBuffer], { type: mimeType });
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', blob, filename);
 
   const UPLOAD_AND_CONVERT_ENDPOINT = `${process.env.NEXT_PUBLIC_BASE_URL}/api/upload-and-convert`;
   const response = await fetch(UPLOAD_AND_CONVERT_ENDPOINT, {
