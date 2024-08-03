@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AnalysisResult, TestComponent } from '@/types/medical';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
 
 if (!BASE_URL) {
   throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');
@@ -10,44 +11,39 @@ if (!BASE_URL) {
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
-async function uploadAndConvertPdf(file: File): Promise<{ publicUrl: string; base64Images: string[]; }> {
-  console.log('[Upload and Convert] Starting PDF upload and conversion');
-  
-  const formData = new FormData();
-  formData.append('file', file);
+async function convertPdfToImages(publicUrl: string): Promise<string[]> {
+  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
 
-  const response = await fetch(`${BASE_URL}/api/upload-and-convert`, {
-    method: 'POST',
-    body: formData,
+  const response = await fetch(`${PDF_TO_IMAGE_API_URL}?url=${encodeURIComponent(publicUrl)}`, {
+    method: 'POST'
   });
 
+  console.log(`[PDF Conversion] Response status: ${response.status}`);
+
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[Upload and Convert] Failed with status ${response.status}. Error: ${errorText}`);
-    throw new Error(`Upload and convert failed with status ${response.status}. Error: ${errorText}`);
+    const responseText = await response.text();
+    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
+    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
   }
 
-  const result = await response.json();
-  console.log('[Upload and Convert] Successfully uploaded and converted PDF');
+  const data = await response.json();
 
-  if (!result.url || !result.base64_images) {
-    console.error('[Upload and Convert] Invalid response structure');
-    throw new Error('Invalid response from upload and convert');
+  if (!data.base64_images || data.base64_images.length === 0) {
+    console.error('[PDF Conversion] No images returned');
+    throw new Error('PDF conversion returned no images');
   }
 
-  return {
-    publicUrl: result.url,
-    base64Images: result.base64_images,
-  };
+  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
+  return data.base64_images;
 }
 
 async function processFile(file: File, publicUrl: string): Promise<{ base64Images: string[]; mimeType: string; }> {
   console.log(`[File Processing] Processing file: ${file.name}, type: ${file.type}`);
   
   if (file.type === 'application/pdf') {
-    const { base64Images } = await uploadAndConvertPdf(file);
+    const images = await convertPdfToImages(publicUrl);
     return {
-      base64Images: base64Images,
+      base64Images: images,
       mimeType: 'image/png'
     };
   } else {
@@ -62,20 +58,17 @@ async function processFile(file: File, publicUrl: string): Promise<{ base64Image
 
 async function analyzeImages(images: string[], mimeType: string): Promise<{ results: AnalysisResult[] }> {
   console.log(`[Image Analysis] Analyzing ${images.length} images`);
-  const batchSize = 3; // Changed batch size to 3
+  const batchSize = 3;
   const allResults: AnalysisResult[] = [];
 
   for (let i = 0; i < images.length; i += batchSize) {
     const batch = images.slice(i, i + batchSize);
     console.log(`[Image Analysis] Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(images.length / batchSize)}`);
 
-    const requestBody = JSON.stringify({ images: batch, mimeType });
-    console.log(`[Image Analysis] Batch size: ${requestBody.length} characters`);
-
     const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-health-reports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: requestBody
+      body: JSON.stringify({ images: batch, mimeType })
     });
   
     if (!analyzeResponse.ok) {
@@ -90,7 +83,7 @@ async function analyzeImages(images: string[], mimeType: string): Promise<{ resu
       console.error("[Image Analysis] Unexpected analysis results structure");
       throw new Error("Analysis results do not contain an array of results as expected");
     }
-
+  
     allResults.push(...analysisData.results);
   }
 
@@ -98,14 +91,14 @@ async function analyzeImages(images: string[], mimeType: string): Promise<{ resu
   return { results: allResults };
 }
 
-async function storeResults(results: AnalysisResult[], publicUrl: string): Promise<void> {
-  console.log(`[Result Storage] Storing results for ${results.length} pages`);
+async function storeResult(result: AnalysisResult, publicUrl: string, pageNumber: number): Promise<void> {
+  console.log(`[Result Storage] Storing result for page ${pageNumber}`);
   const endpoint = '/api/store/test-results';
 
   const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ results, publicUrl })
+    body: JSON.stringify({ results: [result], publicUrl })
   });
   
   if (!storeResponse.ok) {
@@ -114,7 +107,7 @@ async function storeResults(results: AnalysisResult[], publicUrl: string): Promi
     throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
   }
 
-  console.log(`[Result Storage] Successfully stored results for all pages`);
+  console.log(`[Result Storage] Successfully stored result for page ${pageNumber}`);
 }
 
 export async function POST(request: NextRequest) {
@@ -151,7 +144,9 @@ export async function POST(request: NextRequest) {
     const analysisResults = await analyzeImages(base64Images, mimeType);
 
     // Store results
-    await storeResults(analysisResults.results, publicUrl);
+    for (let i = 0; i < analysisResults.results.length; i++) {
+      await storeResult(analysisResults.results[i], publicUrl, i + 1);
+    }
 
     console.log('[POST] All processing completed successfully');
     return NextResponse.json({ results: analysisResults.results, publicUrl });
