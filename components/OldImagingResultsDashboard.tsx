@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Calendar, User, MessageSquare, Download, ChevronDown, ChevronUp, Link } from "lucide-react";
+import { Calendar, User, MessageSquare, Download, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 
 interface OldImagingResult {
   id: number;
@@ -38,6 +38,10 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleView = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -111,16 +115,10 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                       <Button
                         variant="outline"
                         size="icon"
-                        asChild
+                        onClick={() => handleView(result.public_url)}
                         title="View"
                       >
-                        <a
-                          href={result.public_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Link className="h-4 w-4" />
-                        </a>
+                        <ExternalLink className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -130,14 +128,14 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                     <TableCell colSpan={5}>
                       <div className="p-4 bg-gray-50 rounded-lg">
                         {result.public_url.toLowerCase().endsWith('.pdf') ? (
-                          <object
-                            data={result.public_url}
-                            type="application/pdf"
+                          <iframe
+                            src={result.public_url}
                             width="100%"
                             height="600px"
+                            title={`PDF viewer for ${result.test}`}
                           >
-                            <p>Unable to display PDF file. <a href={result.public_url}>Download</a> instead.</p>
-                          </object>
+                            <p>Your browser doesn't support iframes. <a href={result.public_url}>Download the PDF</a> instead.</p>
+                          </iframe>
                         ) : (
                           <img src={result.public_url} alt={result.test} className="max-w-full h-auto" />
                         )}
