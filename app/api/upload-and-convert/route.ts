@@ -40,52 +40,39 @@ async function getBase64(file: File): Promise<string> {
 }
 
 async function convertPdfToImages(publicUrl: string): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
-    console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
-  
-    const response = await fetch(PDF_TO_IMAGE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url: publicUrl })
-    });
-  
-    console.log(`[PDF Conversion] Response status: ${response.status}`);
-  
-    if (!response.ok) {
-      const responseText = await response.text();
-      console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
-      throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
-    }
-  
-    const rawData = await response.text();
-    console.log('[PDF Conversion] Raw response data:', rawData);
-  
-    let data;
-    try {
-      data = JSON.parse(rawData);
-    } catch (error) {
-      console.error('[PDF Conversion] Failed to parse JSON response:', error);
-      throw new Error('Failed to parse PDF conversion response');
-    }
-  
-    console.log('[PDF Conversion] Parsed data:', JSON.stringify(data, null, 2));
-  
-    if (!data.base64_images || data.base64_images.length === 0) {
-      console.error('[PDF Conversion] No images returned');
-      throw new Error('PDF conversion returned no images');
-    }
-  
-    console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
-    console.log(`[PDF Conversion] MIME type: ${data.mimeType || 'Not provided'}`);
-    console.log(`[PDF Conversion] URL: ${data.url}`);
-  
-    return {
-      url: data.url,
-      base64_images: data.base64_images,
-      mimeType: data.mimeType || 'image/png'  // Default to 'image/png' if mimeType is not provided
-    };
+  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
+
+  const response = await fetch(PDF_TO_IMAGE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url: publicUrl })
+  });
+
+  console.log(`[PDF Conversion] Response status: ${response.status}`);
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
+    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
   }
+
+  const data = await response.json();
+  console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
+
+  if (!data.base64_images || data.base64_images.length === 0) {
+    console.error('[PDF Conversion] No images returned');
+    throw new Error('PDF conversion returned no images');
+  }
+
+  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
+  return {
+    url: publicUrl,
+    base64_images: data.base64_images,
+    mimeType: 'image/png'  // PDF conversion always results in PNG images
+  };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,14 +92,8 @@ export async function POST(request: NextRequest) {
     let result: { url: string; base64_images: string | string[]; mimeType: string };
 
     if (file.type === 'application/pdf') {
-      // For PDF files, convert to images and use the MIME type from the endpoint
-      const pdfConversionResult = await convertPdfToImages(publicUrl);
-      console.log('[PDF Conversion] Raw result:', JSON.stringify(pdfConversionResult, null, 2));
-      result = {
-        url: pdfConversionResult.url,
-        base64_images: pdfConversionResult.base64_images,
-        mimeType: pdfConversionResult.mimeType || 'image/png'  // Default to 'image/png' if mimeType is not provided
-      };
+      // For PDF files, convert to images
+      result = await convertPdfToImages(publicUrl);
       console.log(`[PDF Processing] Converted PDF into ${result.base64_images.length} images. MIME type: ${result.mimeType}`);
     } else {
       // For all other file types, use the actual MIME type of the file

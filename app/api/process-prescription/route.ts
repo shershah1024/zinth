@@ -44,10 +44,10 @@ async function uploadAndConvertFile(formData: FormData): Promise<{ publicUrl: st
   }
   
   const responseData = await uploadResponse.json();
-  console.log('[File Upload] Raw response from upload-file-supabase:', JSON.stringify(responseData, null, 2));
+  console.log('[File Upload] Response from upload-file-supabase:', JSON.stringify(responseData, null, 2));
   
-  const { publicUrl, base64_images: base64Data, mimeType } = responseData;
-  console.log(`[File Upload] File uploaded and converted successfully. Public URL: ${publicUrl}, MIME type: ${mimeType}, Base64 data type: ${typeof base64Data}, Length: ${Array.isArray(base64Data) ? base64Data.length : base64Data.length}`);
+  const { url: publicUrl, base64_images: base64Data, mimeType } = responseData;
+  console.log(`[File Upload] File uploaded and converted. Public URL: ${publicUrl}, MIME type: ${mimeType}, Base64 data type: ${typeof base64Data}, Length: ${Array.isArray(base64Data) ? base64Data.length : base64Data.length}`);
   return { publicUrl, base64Data, mimeType };
 }
 
