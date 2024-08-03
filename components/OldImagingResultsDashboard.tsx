@@ -1,15 +1,11 @@
-
-// app/old-imaging-results/OldImagingResultsDashboard.tsx
-'use client';
-
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Calendar, User, MessageSquare, Download, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Calendar, User, MessageSquare, Download, ChevronDown, ChevronUp, Link } from 'lucide-react';
 
 interface OldImagingResult {
   id: number;
@@ -44,14 +40,10 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
     document.body.removeChild(link);
   };
 
-  const handleView = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold">Old Imaging Results Dashboard</CardTitle>
+        <CardTitle className="text-2xl font-bold">Imaging Results Dashboard</CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
@@ -98,9 +90,8 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                     <div className="flex justify-end space-x-2">
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => toggleExpand(result.id)}
-                        title={expandedRows.includes(result.id) ? "Collapse" : "Expand"}
                       >
                         {expandedRows.includes(result.id) ? (
                           <ChevronUp className="h-4 w-4" />
@@ -110,20 +101,19 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                       </Button>
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => handleDownload(result.public_url, `${result.test}-${result.date}.pdf`)}
-                        title="Download"
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleView(result.public_url)}
-                        title="View"
+                      <a
+                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9"
+                        href={result.public_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
+                        <Link className="h-4 w-4" />
+                      </a>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -132,14 +122,14 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                     <TableCell colSpan={5}>
                       <div className="p-4 bg-gray-50 rounded-lg">
                         {result.public_url.toLowerCase().endsWith('.pdf') ? (
-                          <iframe
-                            src={result.public_url}
+                          <object
+                            data={result.public_url}
+                            type="application/pdf"
                             width="100%"
                             height="600px"
-                            title={`PDF viewer for ${result.test}`}
-                            >
-                            <p>Your browser doesn&apos;t support iframes. <a href={result.public_url}>Download the PDF</a> instead.</p>
-                          </iframe>
+                          >
+                            <p>Unable to display PDF file. <a href={result.public_url}>Download</a> instead.</p>
+                          </object>
                         ) : (
                           <img src={result.public_url} alt={result.test} className="max-w-full h-auto" />
                         )}
