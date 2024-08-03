@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Activity, X, Search, AlertCircle, Calendar } from 'lucide-react';
 
+// Updated types to allow string or number for values
 interface HistoryRecord {
   date: string;
   value: number | string;
@@ -28,24 +29,11 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
   const [selectedElement, setSelectedElement] = useState<ProcessedTest | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const groupedAndFilteredTests = useMemo(() => {
-    const filtered = initialTestElements.filter(element =>
+  const filteredTestElements = useMemo(() => 
+    initialTestElements.filter(element =>
       element.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    return filtered.reduce((acc, test) => {
-      const date = test.latestDate;
-      if (!acc[date]) {
-        acc[date] = [];
-      }
-      acc[date].push(test);
-      return acc;
-    }, {} as Record<string, ProcessedTest[]>);
-  }, [initialTestElements, searchTerm]);
-
-  const sortedDates = useMemo(() => 
-    Object.keys(groupedAndFilteredTests).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()),
-    [groupedAndFilteredTests]
+    ),
+    [initialTestElements, searchTerm]
   );
 
   const handleElementClick = (element: ProcessedTest) => setSelectedElement(element);
@@ -54,7 +42,7 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
 
   const isAbnormal = (value: number | string, normalRange: string): boolean => {
     const numericValue = typeof value === 'string' ? parseFloat(value) : value;
-    if (isNaN(numericValue)) return false;
+    if (isNaN(numericValue)) return false; // Handle non-numeric strings
     const [min, max] = normalRange.split('-').map(Number);
     return numericValue < min || numericValue > max;
   };
@@ -75,9 +63,16 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
         whileTap={{ scale: 0.98 }}
       >
         <Card 
-          className={`cursor-pointer hover:shadow-lg transition-shadow duration-300 bg-white border-2 ${abnormal ? 'border-red-400' : 'border-green-400'}`}
+          className={`cursor-pointer hover:shadow-lg transition-shadow duration-300 bg-white border-2 ${abnormal ? 'border-red-400' : 'border-green-400'} relative overflow-hidden`}
           onClick={() => handleElementClick(element)}
         >
+          {/* Date highlight */}
+          <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-500 rotate-45 transform origin-bottom-left"></div>
+          <div className="absolute top-0 right-0 p-2 text-white font-semibold flex items-center">
+            <Calendar className="w-4 h-4 mr-1" />
+            <span className="text-xs">{element.latestDate}</span>
+          </div>
+
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 bg-gray-50">
             <h2 className="text-xl font-semibold text-gray-800">{element.name}</h2>
             {abnormal && <AlertCircle className="w-5 h-5 text-red-500" />}
@@ -87,8 +82,7 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
               {formatValue(element.latestValue)} 
               <span className="text-sm font-normal text-gray-500 ml-1">{element.unit}</span>
             </p>
-            <p className="text-sm text-gray-600 mt-2">Latest: {element.latestDate}</p>
-            <p className="text-sm text-gray-600">Normal Range: {element.normalRange}</p>
+            <p className="text-sm text-gray-600 mt-2">Normal Range: {element.normalRange}</p>
           </CardContent>
         </Card>
       </motion.div>
@@ -192,24 +186,16 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
       </div>
 
-      {sortedDates.map(date => (
-        <div key={date} className="mb-8">
-          <div className="flex items-center mb-4">
-            <Calendar className="w-6 h-6 mr-2 text-green-600" />
-            <h2 className="text-2xl font-semibold text-gray-800">{date}</h2>
-          </div>
-          <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            {groupedAndFilteredTests[date].map(element => (
-              <TestCard key={element.id} element={element} />
-            ))}
-          </motion.div>
-        </div>
-      ))}
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {filteredTestElements.map(element => (
+          <TestCard key={element.id} element={element} />
+        ))}
+      </motion.div>
 
       <AnimatePresence>
         {selectedElement && <Modal />}
