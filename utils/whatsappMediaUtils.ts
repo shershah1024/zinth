@@ -1,8 +1,5 @@
 import { fetchWithTimeout, handleFetchErrors } from './whatsappUtils';
 import { createClient } from '@supabase/supabase-js';
-import fs from 'fs/promises';
-import os from 'os';
-import path from 'path';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -57,21 +54,11 @@ async function downloadMedia(mediaUrl: string): Promise<Buffer> {
   }
 }
 
-async function saveTempFile(buffer: Buffer, filename: string): Promise<string> {
-  const tempDir = os.tmpdir();
-  const filePath = path.join(tempDir, filename);
-  await fs.writeFile(filePath, buffer);
-  return filePath;
-}
-
-async function uploadFileToSupabase(filePath: string, contentType: string): Promise<{ path: string; publicUrl: string }> {
+async function uploadFileToSupabase(fileData: Buffer, fileName: string, contentType: string): Promise<{ path: string; publicUrl: string }> {
   try {
-    const fileContent = await fs.readFile(filePath);
-    const fileName = `${Date.now()}_${path.basename(filePath)}`;
-
     const { data, error } = await supabase.storage
       .from('all_file')
-      .upload(fileName, fileContent, {
+      .upload(fileName, fileData, {
         contentType: contentType,
       });
 
@@ -95,9 +82,9 @@ async function uploadFileToSupabase(filePath: string, contentType: string): Prom
       path: data.path,
       publicUrl: publicUrlData.publicUrl
     };
-  } finally {
-    // Clean up the temporary file
-    await fs.unlink(filePath).catch(console.error);
+  } catch (error) {
+    console.error('Error in uploadFileToSupabase:', error);
+    throw error;
   }
 }
 
@@ -106,10 +93,9 @@ export async function downloadAndUploadMedia(mediaId: string): Promise<{ path: s
     const mediaInfo = await getMediaInfo(mediaId);
     const binaryData = await downloadMedia(mediaInfo.url);
 
-    const filename = `media_${Date.now()}.${mediaInfo.mime_type.split('/')[1]}`;
-    const tempFilePath = await saveTempFile(binaryData, filename);
-
-    const result = await uploadFileToSupabase(tempFilePath, mediaInfo.mime_type);
+    const fileName = `media_${Date.now()}.${mediaInfo.mime_type.split('/')[1]}`;
+    
+    const result = await uploadFileToSupabase(binaryData, fileName, mediaInfo.mime_type);
 
     console.log(`Media downloaded and uploaded to Supabase: ${result.path}`);
 
