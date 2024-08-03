@@ -2,8 +2,8 @@ import React from 'react';
 import { ImagingResultsDisplay } from '@/components/ImagingResultsDisplay';
 import { Metadata } from 'next';
 
-// Define the type for the raw data from the API
-interface RawImagingResult {
+// Define the type for the imaging result
+interface ImagingResult {
   id: number;
   created_at: string;
   patient_number: string;
@@ -14,37 +14,6 @@ interface RawImagingResult {
   doctor: string;
 }
 
-// Define the type expected by ImagingResultsDisplay
-interface FormattedImagingResult {
-  id: string;
-  testName: string;
-  testDate: string;
-  fileUrl: string;
-  fileType: 'image' | 'pdf';
-  observation: string;
-}
-
-// Function to determine file type based on URL
-function getFileType(url: string): 'image' | 'pdf' {
-  return url.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image';
-}
-
-// Function to format the raw data
-function formatImagingResults(rawResults: RawImagingResult[]): FormattedImagingResult[] {
-  if (!Array.isArray(rawResults)) {
-    console.error('Raw results is not an array:', rawResults);
-    return [];
-  }
-  return rawResults.map(result => ({
-    id: result.id.toString(),
-    testName: result.test,
-    testDate: new Date(result.date).toLocaleDateString(),
-    fileUrl: result.public_url,
-    fileType: getFileType(result.public_url),
-    observation: result.comments
-  }));
-}
-
 // Metadata for the page
 export const metadata: Metadata = {
   title: 'Your Imaging Results',
@@ -52,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ImagingResultsPage() {
-  let rawResults: RawImagingResult[] = [];
+  let results: ImagingResult[] = [];
   let error: string | null = null;
 
   console.log('Starting to fetch imaging results');
@@ -77,21 +46,17 @@ export default async function ImagingResultsPage() {
     const data = await response.json();
     console.log('Received data:', JSON.stringify(data, null, 2));
     
-    if (!Array.isArray(data)) {
-      console.error('API did not return an array. Received:', typeof data, data);
-      throw new Error('API did not return an array');
+    if (!Array.isArray(data.data)) {
+      console.error('API did not return an array in data property. Received:', typeof data.data, data.data);
+      throw new Error('API did not return an array in data property');
     }
 
-    rawResults = data;
-    console.log(`Received ${rawResults.length} raw results`);
+    results = data.data;
+    console.log(`Received ${results.length} results`);
   } catch (e) {
     error = e instanceof Error ? e.message : 'An unknown error occurred';
     console.error('Error fetching imaging results:', error);
   }
-
-  console.log('Formatting results');
-  const formattedResults = formatImagingResults(rawResults);
-  console.log(`Formatted ${formattedResults.length} results`);
 
   if (error) {
     console.log('Rendering error page');
@@ -114,8 +79,8 @@ export default async function ImagingResultsPage() {
           Below are your recent imaging test results. Click on each test to view more details and download the images or reports. 
           To view older results, use the button at the bottom of the list.
         </p>
-        {formattedResults.length > 0 ? (
-          <ImagingResultsDisplay results={formattedResults} />
+        {results.length > 0 ? (
+          <ImagingResultsDisplay results={results} />
         ) : (
           <p>No imaging results found.</p>
         )}

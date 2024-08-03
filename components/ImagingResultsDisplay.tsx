@@ -9,12 +9,14 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronDown, ChevronUp, Download, FileText, Image as ImageIcon, Clock, Calendar, Link } from "lucide-react"
 
 type ImagingResult = {
-  id: string;
-  testName: string;
-  testDate: string;
-  fileUrl: string;
-  fileType: 'image' | 'pdf';
-  observation?: string;
+  id: number;
+  created_at: string;
+  patient_number: string;
+  date: string;
+  test: string;
+  comments: string;
+  public_url: string;
+  doctor: string;
 };
 
 interface ImagingResultsDisplayProps {
@@ -22,10 +24,10 @@ interface ImagingResultsDisplayProps {
 }
 
 export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
-  const [expandedResults, setExpandedResults] = useState<string[]>([]);
+  const [expandedResults, setExpandedResults] = useState<number[]>([]);
   const router = useRouter();
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = (id: number) => {
     setExpandedResults(prev =>
       prev.includes(id) ? prev.filter(resultId => resultId !== id) : [...prev, id]
     );
@@ -44,6 +46,10 @@ export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
     router.push('/old-imaging-results');
   };
 
+  const getFileType = (url: string): 'image' | 'pdf' => {
+    return url.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image';
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -53,9 +59,9 @@ export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[200px]">Test Name</TableHead>
               <TableHead className="w-[150px]">Date</TableHead>
-              <TableHead>File Type</TableHead>
+              <TableHead className="w-[200px]">Test</TableHead>
+              <TableHead>Doctor</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -63,19 +69,14 @@ export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
             {results.map((result) => (
               <React.Fragment key={result.id}>
                 <TableRow>
-                  <TableCell className="font-medium">{result.testName}</TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{result.testDate}</span>
+                      <span>{result.date}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {result.fileType === 'pdf' ? <FileText className="h-4 w-4 mr-2" /> : <ImageIcon className="h-4 w-4 mr-2" />}
-                      {result.fileType.toUpperCase()}
-                    </Badge>
-                  </TableCell>
+                  <TableCell className="font-medium">{result.test}</TableCell>
+                  <TableCell>{result.doctor}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
                       <Button variant="outline" size="sm" onClick={() => toggleExpand(result.id)}>
@@ -88,11 +89,11 @@ export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDownload(result.fileUrl, `${result.testName}.${result.fileType}`)}
+                        onClick={() => handleDownload(result.public_url, `${result.test}.${getFileType(result.public_url)}`)}
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      <a href={result.fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
+                      <a href={result.public_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
                         <Link className="h-4 w-4" />
                       </a>
                     </div>
@@ -103,23 +104,23 @@ export function ImagingResultsDisplay({ results }: ImagingResultsDisplayProps) {
                     <TableCell colSpan={4}>
                       <div className="p-4 bg-gray-50 rounded-lg">
                         <div className="aspect-w-16 aspect-h-9 mb-4">
-                          {result.fileType === 'pdf' ? (
+                          {getFileType(result.public_url) === 'pdf' ? (
                             <object
-                              data={result.fileUrl}
+                              data={result.public_url}
                               type="application/pdf"
                               width="100%"
                               height="600px"
                             >
-                              <p>Unable to display PDF file. <a href={result.fileUrl}>Download</a> instead.</p>
+                              <p>Unable to display PDF file. <a href={result.public_url}>Download</a> instead.</p>
                             </object>
                           ) : (
-                            <img src={result.fileUrl} alt={result.testName} className="object-contain w-full h-full" />
+                            <img src={result.public_url} alt={result.test} className="object-contain w-full h-full" />
                           )}
                         </div>
-                        {result.observation && (
+                        {result.comments && (
                           <div className="bg-white p-4 rounded-lg">
-                            <h4 className="font-semibold mb-2">Observations:</h4>
-                            <p>{result.observation}</p>
+                            <h4 className="font-semibold mb-2">Comments:</h4>
+                            <p>{result.comments}</p>
                           </div>
                         )}
                       </div>
