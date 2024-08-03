@@ -66,12 +66,12 @@ async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64
 
 async function analyzePrescription(base64Data: string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
   console.log(`[Prescription Analysis] Starting analysis. MIME type: ${mimeType}`);
-  console.log(`[Prescription Analysis] Input base64Data (truncated): ${base64Data[0].substring(0, 50)}...`);
+  console.log(`[Prescription Analysis] Number of images: ${base64Data.length}`);
   
   const analyzeResponse = await fetch(PDF_TO_IMAGE_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: base64Data[0], mimeType })
+    body: JSON.stringify({ images: base64Data, mimeType })
   });
   
   if (!analyzeResponse.ok) {
