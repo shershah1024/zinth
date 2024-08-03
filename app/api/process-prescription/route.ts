@@ -28,25 +28,20 @@ interface PrescriptionAnalysisResult {
   prescription_date: string;
   doctor: string;
   medicines: Medicine[];
-  public_url: string;
 }
 
-async function analyzePrescription(publicUrl: string, base64Data: string | string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
-  console.log(`[Prescription Analysis] Analyzing prescription. MIME type: ${mimeType}`);
+async function analyzePrescription(base64Data: string | string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
+  console.log(`[Prescription Analysis] Starting analysis. MIME type: ${mimeType}`);
+  console.log(`[Prescription Analysis] Input base64Data (truncated): ${Array.isArray(base64Data) ? base64Data.map(d => d.substring(0, 50) + '...') : base64Data.substring(0, 50) + '...'}`);
+  
   try {
-    // Ensure base64Data is always an array
     const images = Array.isArray(base64Data) ? base64Data : [base64Data];
-    
     console.log(`[Prescription Analysis] Number of images to analyze: ${images.length}`);
     
     const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-prescription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        publicUrl, 
-        images,
-        mimeType 
-      })
+      body: JSON.stringify({ images, mimeType })
     });
     
     if (!analyzeResponse.ok) {
@@ -64,8 +59,11 @@ async function analyzePrescription(publicUrl: string, base64Data: string | strin
   }
 }
 
-async function storePrescription(results: PrescriptionAnalysisResult[]): Promise<void> {
-  console.log(`[Prescription Storage] Storing prescriptions`);
+async function storePrescription(results: PrescriptionAnalysisResult[], publicUrl: string): Promise<void> {
+  console.log(`[Prescription Storage] Starting storage process`);
+  console.log(`[Prescription Storage] Public URL: ${publicUrl}`);
+  console.log(`[Prescription Storage] Input results:`, JSON.stringify(results, null, 2));
+  
   const endpoint = '/api/store-prescription';
 
   // Assuming we're only dealing with one prescription at a time
@@ -83,7 +81,7 @@ async function storePrescription(results: PrescriptionAnalysisResult[]): Promise
         notes: medicine.notes,
         medicine_times: medicine.medicine_times
       })),
-      public_url: result.public_url
+      public_url: publicUrl
     }
   };
 
@@ -101,33 +99,38 @@ async function storePrescription(results: PrescriptionAnalysisResult[]): Promise
     throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
   }
 
-  console.log(`[Prescription Storage] Successfully stored prescriptions`);
+  console.log(`[Prescription Storage] Successfully stored prescription`);
 }
 
 export async function POST(request: NextRequest) {
   console.log('[POST] Starting prescription processing');
   try {
-    const { publicUrl, base64Data, mimeType } = await request.json();
+    const requestBody = await request.json();
+    console.log('[POST] Received request body:', JSON.stringify(requestBody, null, 2));
+
+    const { publicUrl, base64Data, mimeType } = requestBody;
 
     if (!publicUrl || !base64Data || !mimeType) {
       console.error('[POST] Missing required data');
       return NextResponse.json({ error: 'Missing required data' }, { status: 400 });
     }
 
-    console.log(`[POST] Received data for processing. Public URL: ${publicUrl}, MIME type: ${mimeType}`);
+    console.log(`[POST] Extracted data:`);
+    console.log(`  Public URL: ${publicUrl}`);
+    console.log(`  MIME type: ${mimeType}`);
+    console.log(`  Base64 data (truncated): ${Array.isArray(base64Data) ? base64Data.map(d => d.substring(0, 50) + '...') : base64Data.substring(0, 50) + '...'}`);
 
-    const analysisResults = await analyzePrescription(publicUrl, base64Data, mimeType);
+    const analysisResults = await analyzePrescription(base64Data, mimeType);
+    console.log('[POST] Analysis results:', JSON.stringify(analysisResults, null, 2));
 
-    // Ensure public_url is set in the analysis results
-    analysisResults[0].public_url = publicUrl;
-
-    // Store results
-    await storePrescription(analysisResults);
+    await storePrescription(analysisResults, publicUrl);
 
     console.log('[POST] All processing completed successfully');
-    return NextResponse.json({ results: analysisResults, publicUrl });
+    const response = { results: analysisResults, publicUrl };
+    console.log('[POST] Sending response:', JSON.stringify(response, null, 2));
+    return NextResponse.json(response);
   } catch (error) {
-    console.error('Error processing prescription:', error);
+    console.error('[POST] Error processing prescription:', error);
     return NextResponse.json({ 
       error: 'Error processing prescription', 
       details: error instanceof Error ? error.message : 'Unknown error' 
