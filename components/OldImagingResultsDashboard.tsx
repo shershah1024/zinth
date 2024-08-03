@@ -134,7 +134,7 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                             height="600px"
                             title={`PDF viewer for ${result.test}`}
                           >
-                            <p>Your browser doesn't support iframes. <a href={result.public_url}>Download the PDF</a> instead.</p>
+                            <p>Your browser doesn&apos;t support iframes. <a href={result.public_url}>Download the PDF</a> instead.</p>
                           </iframe>
                         ) : (
                           <img src={result.public_url} alt={result.test} className="max-w-full h-auto" />
