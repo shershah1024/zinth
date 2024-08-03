@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
 
-    // Use the upload-and-convert route
+    // Use the new upload-and-convert route
     const uploadConvertResponse = await fetch(`${BASE_URL}/api/upload-and-convert`, {
       method: 'POST',
       body: formData
@@ -118,13 +118,11 @@ export async function POST(request: NextRequest) {
       throw new Error(`Upload and convert failed with status ${uploadConvertResponse.status}`);
     }
     
-    const { publicUrl, images } = await uploadConvertResponse.json();
+    const { publicUrl, base64Data, mimeType } = await uploadConvertResponse.json();
     console.log(`[POST] File uploaded and converted successfully. Public URL: ${publicUrl}`);
-    console.log(`[POST] File processed into ${images.length} images`);
 
-    // Extract base64 strings and determine mimeType
-    const base64Images = images.map((img: { base64: string; mimeType: string }) => img.base64);
-    const mimeType = images[0].mimeType; // Assume all images have the same mimeType
+    const base64Images = Array.isArray(base64Data) ? base64Data : [base64Data];
+    console.log(`[POST] File processed into ${base64Images.length} images`);
 
     const analysisResults = await analyzePrescription(base64Images, mimeType);
 
