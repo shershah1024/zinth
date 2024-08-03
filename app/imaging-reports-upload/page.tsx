@@ -1,5 +1,4 @@
-//app/imaging-reports-upload/page.tsx
-
+// app/imaging-reports-upload/page.tsx
 
 import React from 'react';
 import { ImagingTestUploadForm } from '@/components/ImagingTestUploadForm';
@@ -9,7 +8,14 @@ export const metadata: Metadata = {
   title: 'Upload Imaging Test | MediScan',
 };
 
-async function processFile(formData: FormData) {
+interface ProcessFileResult {
+  success: boolean;
+  message?: string;
+  data?: any; // You might want to replace 'any' with a more specific type
+  redirectUrl?: string;
+}
+
+async function processFile(formData: FormData): Promise<ProcessFileResult> {
   'use server'
   
   try {
@@ -23,10 +29,17 @@ async function processFile(formData: FormData) {
     }
 
     const data = await response.json();
-    return data;
+    return { 
+      success: true, 
+      data,
+      redirectUrl: '/imaging-results' // Specify the URL to redirect to
+    };
   } catch (error) {
     console.error('Error processing file:', error);
-    throw error;
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'An unexpected error occurred'
+    };
   }
 }
 

@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileX, Upload, X, ImageIcon } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Upload, ImageIcon } from "lucide-react"
 
 const ACCEPTED_FILE_TYPES = [
   "application/pdf",
@@ -17,7 +17,12 @@ const ACCEPTED_FILE_TYPES = [
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 interface ImagingTestUploadFormProps {
-  processFile: (formData: FormData) => Promise<any>;
+  processFile: (formData: FormData) => Promise<{
+    success: boolean;
+    message?: string;
+    data?: any;
+    redirectUrl?: string;
+  }>;
 }
 
 export function ImagingTestUploadForm({ processFile }: ImagingTestUploadFormProps) {
@@ -75,10 +80,9 @@ export function ImagingTestUploadForm({ processFile }: ImagingTestUploadFormProp
       const formData = new FormData();
       formData.append('file', uploadedFile);
       const result = await processFile(formData);
-      if (result.success) {
-        // Redirect to imaging-results page
-        router.push('/imaging-results');
-      } else {
+      if (result.success && result.redirectUrl) {
+        router.push(result.redirectUrl);
+      } else if (!result.success) {
         throw new Error(result.message || 'File processing failed');
       }
     } catch (err) {
@@ -104,7 +108,7 @@ export function ImagingTestUploadForm({ processFile }: ImagingTestUploadFormProp
               <label htmlFor="file-upload" className="flex flex-col items-center justify-center cursor-pointer">
                 <Upload className="w-16 h-16 mb-4 text-blue-500" />
                 <span className="text-lg font-medium text-blue-700">Click to upload or drag and drop</span>
-                <span className="text-sm text-blue-600 mt-2">PDF, JPEG, or PNG, (MAX. 50MB)</span>
+                <span className="text-sm text-blue-600 mt-2">PDF, JPEG, PNG, or DICOM (MAX. 50MB)</span>
                 <Input
                   id="file-upload"
                   type="file"
