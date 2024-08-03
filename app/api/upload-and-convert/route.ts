@@ -84,15 +84,19 @@ export async function POST(request: NextRequest) {
 
     // Get base64 data
     let base64Data: string | string[];
+    let mimeType: string;
+
     if (file.type === 'application/pdf') {
       base64Data = await convertPdfToImages(publicUrl);
       console.log(`[PDF Processing] Converted PDF into ${base64Data.length} images`);
+      mimeType = 'image/png';  // Set MIME type to image/png for PDFs
     } else {
       base64Data = await getBase64(file);
       console.log(`[Image Processing] Converted image to base64`);
+      mimeType = file.type;  // Use the original MIME type for non-PDF files
     }
 
-    console.log(`[File Processing] MIME type: ${file.type}`);
+    console.log(`[File Processing] MIME type: ${mimeType}`);
 
     if (Array.isArray(base64Data)) {
       console.log(`[File Processing] First image base64 prefix: ${base64Data[0].substring(0, 50)}...`);
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       publicUrl,
       base64Data,
-      mimeType: file.type
+      mimeType
     });
   } catch (error) {
     console.error('[Error] Error processing file:', error);
