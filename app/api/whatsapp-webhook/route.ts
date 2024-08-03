@@ -3,15 +3,16 @@
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
-const DOCUMENT_CLASSIFICATION_URL = '/api/find-document-type'; // Update this if the endpoint URL is different
+const DOCUMENT_CLASSIFICATION_URL = '${BASE_URL}/api/find-document-type'; // Update this if the endpoint URL is different
 
 
 
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+
 const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
 
 
