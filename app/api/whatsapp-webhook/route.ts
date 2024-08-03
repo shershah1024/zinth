@@ -190,29 +190,44 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     });
 
     if (!uploadResponse.ok) {
-      throw new Error(`Upload and convert failed with status ${uploadResponse.status}`);
+      const errorText = await uploadResponse.text();
+      throw new Error(`Upload and convert failed with status ${uploadResponse.status}: ${errorText}`);
     }
 
     const uploadResult = await uploadResponse.json();
     console.log('Upload and convert result:', JSON.stringify(uploadResult, null, 2));
 
+    // Check if the uploaded result is actually an image
+    let base64Image = uploadResult.base64_images;
+    let actualMimeType = uploadResult.mimeType;
+
+    // If the result is HTML, we need to extract the image data
+    if (base64Image.startsWith('PCFET0NUWVBFIGh0bWw+') || actualMimeType.includes('html')) {
+      console.error('Received HTML instead of image data. Unable to process.');
+      throw new Error('Received HTML instead of image data');
+    }
+
     // Determine the MIME type for classification
-    const classificationMimeType = isImage ? mimeType : 'image/png';
+    const classificationMimeType = isImage ? actualMimeType : 'image/png';
     console.log(`Classification MIME type: ${classificationMimeType}`);
 
     // Prepare the payload for the document classification API
     const classificationPayload = {
-      image: uploadResult.base64_images,
+      image: base64Image,
       mimeType: classificationMimeType,
     };
-    console.log('Payload for document classification API:');
+
+    // Log a truncated version of the payload
+    console.log('Payload for document classification API (truncated):');
     console.log(JSON.stringify({
       ...classificationPayload,
-      image: classificationPayload.image.substring(0, 100) + '...' // Truncate the base64 string for logging
+      image: classificationPayload.image.substring(0, 100) + '...' // Truncate only for logging
     }, null, 2));
 
+    console.log(`Full base64 image length: ${classificationPayload.image.length}`);
+
     console.log('Calling document classification API...');
-    // Call the document classification API
+    // Call the document classification API with the full payload
     const classificationResponse = await fetch(`${baseUrl}/api/find-document-type`, {
       method: 'POST',
       headers: {
@@ -222,7 +237,9 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     });
 
     if (!classificationResponse.ok) {
-      throw new Error(`Document classification failed with status ${classificationResponse.status}`);
+      const errorText = await classificationResponse.text();
+      console.error('Classification API error response:', errorText);
+      throw new Error(`Document classification failed with status ${classificationResponse.status}: ${errorText}`);
     }
 
     const classificationResult = await classificationResponse.json();
@@ -233,12 +250,12 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     responseMessage += `Filename: ${preparedFilename}\n`;
     responseMessage += `Document Type: ${classificationResult.type}\n`;
     responseMessage += `Original MIME Type: ${mimeType}\n`;
-    responseMessage += `Upload Result MIME Type: ${uploadResult.mimeType}\n`;
+    responseMessage += `Upload Result MIME Type: ${actualMimeType}\n`;
     responseMessage += `Classification MIME Type: ${classificationMimeType}\n`;
     responseMessage += `Public URL: ${uploadResult.url}\n`;
 
     // Truncate the base64 image data for the response
-    const truncatedBase64 = uploadResult.base64_images.substring(0, 50) + '...';
+    const truncatedBase64 = base64Image.substring(0, 50) + '...';
     responseMessage += `Truncated Image Data: ${truncatedBase64}`;
 
     console.log('Final response message:', responseMessage);
@@ -246,7 +263,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     return responseMessage;
   } catch (error) {
     console.error(`Error handling ${message.type} message:`, error);
-    return `Sorry, there was an error processing your ${message.type}.`;
+    return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
   } finally {
     // Clean up: delete the temporary file
     if (tempFilePath) {
