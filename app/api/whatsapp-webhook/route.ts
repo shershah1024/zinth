@@ -163,16 +163,15 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     }
 
     const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
-    console.log(`Downloaded media. Prepared filename: ${preparedFilename}, Original MIME type: ${mimeType}`);
+    console.log(`Downloaded media. Prepared filename: ${preparedFilename}, Original MIME type: ${mimeType}, Size: ${arrayBuffer.byteLength} bytes`);
 
     console.log('Calling upload-and-convert API...');
-    // Call the upload-and-convert API using the uploadAndConvertFile function
     const uploadResult = await uploadAndConvertFile(arrayBuffer, preparedFilename, mimeType);
     console.log('Upload and convert result:', JSON.stringify(uploadResult, null, 2));
 
     // Prepare the payload for the document classification API
     const classificationPayload = {
-      image: uploadResult.base64_images[0], // We know this is always an array now
+      image: uploadResult.base64_images[0],
       mimeType: uploadResult.mimeType,
     };
 
@@ -182,7 +181,6 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     }, null, 2));
 
     console.log('Calling document classification API...');
-    // Call the document classification API
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
     if (!baseUrl) {
       throw new Error('NEXT_PUBLIC_BASE_URL is not set in environment variables');
@@ -227,36 +225,46 @@ async function uploadAndConvertFile(
   filename: string, 
   mimeType: string
 ): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
-  console.log(`[File Upload and Conversion] Starting for file: ${filename}`);
+  console.log(`[File Upload and Conversion] Starting for file: ${filename}, size: ${arrayBuffer.byteLength} bytes, type: ${mimeType}`);
   
-  const blob = new Blob([arrayBuffer], { type: mimeType });
-  const formData = new FormData();
-  formData.append('file', blob, filename);
+  try {
+    const blob = new Blob([arrayBuffer], { type: mimeType });
+    console.log(`[File Upload] Blob created successfully. Size: ${blob.size} bytes`);
 
-  const UPLOAD_AND_CONVERT_ENDPOINT = `${process.env.NEXT_PUBLIC_BASE_URL}/api/upload-and-convert`;
-  const response = await fetch(UPLOAD_AND_CONVERT_ENDPOINT, {
-    method: 'POST',
-    body: formData,
-  });
+    const formData = new FormData();
+    formData.append('file', blob, filename);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[File Upload and Conversion] Failed with status ${response.status}. Error: ${errorText}`);
-    throw new Error(`File upload and conversion failed with status ${response.status}. Error: ${errorText}`);
+    const UPLOAD_AND_CONVERT_ENDPOINT = `${process.env.NEXT_PUBLIC_BASE_URL}/api/upload-and-convert`;
+    console.log(`[File Upload] Sending request to: ${UPLOAD_AND_CONVERT_ENDPOINT}`);
+
+    const response = await fetch(UPLOAD_AND_CONVERT_ENDPOINT, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[File Upload and Conversion] Failed with status ${response.status}. Error: ${errorText}`);
+      throw new Error(`File upload and conversion failed with status ${response.status}. Error: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('[File Upload and Conversion] Successful. Result:', JSON.stringify(result, null, 2));
+
+    // Ensure base64_images is always an array
+    const base64Images = Array.isArray(result.base64_images) ? result.base64_images : [result.base64_images];
+
+    return {
+      url: result.url,
+      base64_images: base64Images,
+      mimeType: result.mimeType
+    };
+  } catch (error) {
+    console.error('[File Upload and Conversion] Error:', error instanceof Error ? error.message : 'Unknown error');
+    throw error;
   }
-
-  const result = await response.json();
-  console.log(`[File Upload and Conversion] Completed successfully. URL: ${result.url}, MIME type: ${result.mimeType}`);
-  
-  // Ensure base64_images is always an array
-  const base64Images = Array.isArray(result.base64_images) ? result.base64_images : [result.base64_images];
-  
-  return {
-    url: result.url,
-    base64_images: base64Images,
-    mimeType: result.mimeType
-  };
 }
+
 async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   if (message.interactive?.type === 'button_reply') {
     console.log('Received button reply:', message.interactive.button_reply);
