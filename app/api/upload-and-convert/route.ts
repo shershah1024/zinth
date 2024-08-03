@@ -1,46 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
 
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+if (!BASE_URL) {
+  throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');
+}
 
-async function uploadToSupabase(file: File): Promise<string> {
-  console.log(`[Supabase Upload] Starting upload for file: ${file.name}, size: ${file.size} bytes`);
+async function uploadFile(file: File): Promise<string> {
+  console.log(`[File Upload] Starting upload for file: ${file.name}, size: ${file.size} bytes`);
   
-  const { data, error } = await supabase.storage
-    .from('all_file')
-    .upload(`${Date.now()}-${file.name}`, file);
+  const formData = new FormData();
+  formData.append('file', file);
 
-  if (error) {
-    console.error(`[Supabase Upload] Error:`, error);
-    throw error;
+  const response = await fetch(UPLOAD_FILE_ENDPOINT, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[File Upload] Upload failed with status ${response.status}. Error: ${errorText}`);
+    throw new Error(`Upload failed with status ${response.status}. Error: ${errorText}`);
   }
 
-  const { data: publicUrlData } = supabase.storage
-    .from('all_file')
-    .getPublicUrl(data.path);
+  const data = await response.json();
 
-  const publicUrl = publicUrlData.publicUrl;
-  console.log(`[Supabase Upload] File uploaded successfully. Public URL: ${publicUrl}`);
-
-  // Verify that the URL is publicly accessible
-  try {
-    const verifyResponse = await fetch(publicUrl, { method: 'HEAD' });
-    if (!verifyResponse.ok) {
-      throw new Error(`URL is not publicly accessible: ${verifyResponse.status}`);
-    }
-  } catch (error) {
-    console.error('[Supabase Upload] Error verifying public URL:', error);
-    throw new Error('Failed to verify public URL accessibility');
+  if (!data.success || !data.publicUrl) {
+    console.error('[File Upload] Invalid response from server:', data);
+    throw new Error('Invalid response from server');
   }
 
-  return publicUrl;
+  console.log(`[File Upload] File uploaded successfully. Public URL: ${data.publicUrl}`);
+  return data.publicUrl;
 }
 
 async function getBase64(file: File): Promise<string> {
@@ -99,8 +95,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`[File Upload] Received file: ${file.name}, type: ${file.type || 'undefined'}, size: ${file.size} bytes`);
 
-    // Upload file to Supabase
-    const publicUrl = await uploadToSupabase(file);
+    // Upload file using the existing endpoint
+    const publicUrl = await uploadFile(file);
 
     let result: { url: string; base64_images: string | string[]; mimeType: string };
 
