@@ -76,6 +76,7 @@ export function ImagingTestUploadForm({ processFile }: ImagingTestUploadFormProp
       formData.append('file', uploadedFile);
       const result = await processFile(formData);
       if (result.success) {
+        // Redirect to imaging-results page
         router.push('/imaging-results');
       } else {
         throw new Error(result.message || 'File processing failed');
@@ -89,7 +90,6 @@ export function ImagingTestUploadForm({ processFile }: ImagingTestUploadFormProp
 
   return (
     <Card className="w-full h-[calc(100vh-4rem)] max-w-6xl mx-auto bg-gradient-to-br from-blue-50 to-indigo-100 shadow-lg overflow-hidden">
-
       <CardContent className="p-6 h-[calc(100%-5rem)] overflow-y-auto">
         <form onSubmit={handleSubmit} className="space-y-6 h-full flex flex-col">
           {error && (
@@ -104,7 +104,7 @@ export function ImagingTestUploadForm({ processFile }: ImagingTestUploadFormProp
               <label htmlFor="file-upload" className="flex flex-col items-center justify-center cursor-pointer">
                 <Upload className="w-16 h-16 mb-4 text-blue-500" />
                 <span className="text-lg font-medium text-blue-700">Click to upload or drag and drop</span>
-                <span className="text-sm text-blue-600 mt-2">PDF, JPEG, or PNG, (MAX. 10MB)</span>
+                <span className="text-sm text-blue-600 mt-2">PDF, JPEG, or PNG, (MAX. 50MB)</span>
                 <Input
                   id="file-upload"
                   type="file"
