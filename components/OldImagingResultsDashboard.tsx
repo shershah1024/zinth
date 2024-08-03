@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Calendar, User, MessageSquare, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, User, MessageSquare, Download, ChevronDown, ChevronUp, Link } from 'lucide-react';
 
 interface OldImagingResult {
   id: number;
@@ -91,13 +91,6 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDownload(result.public_url, `${result.test}-${result.date}.pdf`)}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
                         onClick={() => toggleExpand(result.id)}
                       >
                         {expandedRows.includes(result.id) ? (
@@ -106,6 +99,21 @@ const OldImagingResultsDashboard: React.FC<OldImagingResultsDashboardProps> = ({
                           <ChevronDown className="h-4 w-4" />
                         )}
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownload(result.public_url, `${result.test}-${result.date}.pdf`)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <a
+                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9"
+                        href={result.public_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Link className="h-4 w-4" />
+                      </a>
                     </div>
                   </TableCell>
                 </TableRow>
