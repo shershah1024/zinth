@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChevronDown, Download, Eye, Calendar, User, MessageSquare } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, Eye, Calendar, User, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Supabase setup
@@ -47,8 +47,47 @@ async function getOldImagingResults() {
   return data;
 }
 
-export default async function OldImagingResultsPage() {
-  const oldResults = await getOldImagingResults();
+export default function OldImagingResultsPage() {
+  const [oldResults, setOldResults] = useState<ImagingResult[]>([]);
+  const [expandedRows, setExpandedRows] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    async function fetchData() {
+      try {
+        const data = await getOldImagingResults();
+        setOldResults(data);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const toggleExpand = (id: number) => {
+    setExpandedRows(prev =>
+      prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
+    );
+  };
+
+  const handleDownload = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleView = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -70,47 +109,88 @@ export default async function OldImagingResultsPage() {
             </TableHeader>
             <TableBody>
               {oldResults.map((result: ImagingResult) => (
-                <TableRow key={result.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{format(new Date(result.date), 'MMM dd, yyyy')}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{result.test}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${result.doctor}`} />
-                        <AvatarFallback>{result.doctor.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span>{result.doctor}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate max-w-[200px]" title={result.comments}>
-                        {result.comments}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="outline" size="icon" title="Expand">
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon" title="View">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon" title="Download">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <React.Fragment key={result.id}>
+                  <TableRow>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>{format(new Date(result.date), 'MMM dd, yyyy')}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{result.test}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${result.doctor}`} />
+                          <AvatarFallback>{result.doctor.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span>{result.doctor}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                        <span className="truncate max-w-[200px]" title={result.comments}>
+                          {result.comments}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => toggleExpand(result.id)}
+                          title={expandedRows.includes(result.id) ? "Collapse" : "Expand"}
+                        >
+                          {expandedRows.includes(result.id) ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleView(result.public_url)}
+                          title="View"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleDownload(result.public_url, `${result.test}-${result.date}.pdf`)}
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  {expandedRows.includes(result.id) && (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                          {result.public_url.toLowerCase().endsWith('.pdf') ? (
+                            <iframe
+                              src={result.public_url}
+                              width="100%"
+                              height="600px"
+                              title={`PDF viewer for ${result.test}`}
+                            >
+                              <p>Your browser doesn&apos;t support iframes. <a href={result.public_url}>Download the PDF</a> instead.</p>
+                            </iframe>
+                          ) : (
+                            <img src={result.public_url} alt={result.test} className="max-w-full h-auto" />
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>
