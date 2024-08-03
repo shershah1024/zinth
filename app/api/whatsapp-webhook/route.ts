@@ -167,8 +167,14 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string, phon
     const formData = new FormData();
     formData.append('file', file);
 
-    // Call the upload-and-convert API
-    const response = await fetch('/api/upload-and-convert', {
+    // Get the base URL from environment variables
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!baseUrl) {
+      throw new Error('API_BASE_URL is not set in environment variables');
+    }
+
+    // Call the upload-and-convert API with the full URL
+    const response = await fetch(`${baseUrl}/api/upload-and-convert`, {
       method: 'POST',
       body: formData,
     });
