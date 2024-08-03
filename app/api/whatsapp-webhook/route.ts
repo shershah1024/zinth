@@ -3,6 +3,9 @@
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndPrepareMedia } from '@/utils/whatsappMediaUtils';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
 
 // Types
 interface WhatsAppMessage {
@@ -137,6 +140,7 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
+  let tempFilePath: string | undefined;
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
     if (!mediaInfo) {
@@ -148,20 +152,23 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     if (message.type === 'document' && message.document) {
       filename = message.document.filename;
     } else if (message.type === 'image' && message.image) {
-      // For images, we'll let the downloadAndPrepareMedia function generate a filename
-      filename = undefined;
+      const fileExtension = message.image.mime_type.split('/')[1];
+      filename = `image_${Date.now()}.${fileExtension}`;
     } else {
       throw new Error(`Unsupported media type: ${message.type}`);
     }
 
     const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
 
-    // Create a Blob from the ArrayBuffer
-    const blob = new Blob([arrayBuffer], { type: mimeType });
+    // Create a temporary file
+    const tempDir = os.tmpdir();
+    tempFilePath = path.join(tempDir, preparedFilename);
+    await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
 
-    // Create FormData and append the blob
+    // Create FormData and append the file
     const formData = new FormData();
-    formData.append('file', blob, preparedFilename);
+    const fileStream = await fs.readFile(tempFilePath);
+    formData.append('file', new Blob([fileStream]), preparedFilename);
 
     // Get the base URL from environment variables
     const baseUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -200,6 +207,11 @@ Truncated result: ${JSON.stringify(truncatedResult)}`;
   } catch (error) {
     console.error(`Error handling ${message.type} message:`, error);
     return `Sorry, there was an error processing your ${message.type}.`;
+  } finally {
+    // Clean up: delete the temporary file
+    if (tempFilePath) {
+      await fs.unlink(tempFilePath).catch(console.error);
+    }
   }
 }
 
