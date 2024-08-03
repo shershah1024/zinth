@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,7 @@ interface PrescriptionAnalysisResult {
   medicines: Medicine[];
 }
 
-async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64Data: string; mimeType: string }> {
+async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64Data: string[]; mimeType: string }> {
   console.log('[Upload and Convert] Starting file upload and conversion');
   
   const formData = new FormData();
@@ -49,17 +50,28 @@ async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64
 
   const result = await response.json();
   console.log('[Upload and Convert] Successfully uploaded and converted file');
-  return result;
+  console.log('[Upload and Convert] Result:', JSON.stringify(result, null, 2));
+
+  if (!result.url) {
+    console.error('[Upload and Convert] Missing URL in response');
+    throw new Error('Missing URL in upload and convert response');
+  }
+
+  return {
+    publicUrl: result.url,
+    base64Data: result.base64_images,
+    mimeType: result.mimeType
+  };
 }
 
-async function analyzePrescription(base64Data: string, mimeType: string): Promise<PrescriptionAnalysisResult[]> {
+async function analyzePrescription(base64Data: string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
   console.log(`[Prescription Analysis] Starting analysis. MIME type: ${mimeType}`);
-  console.log(`[Prescription Analysis] Input base64Data (truncated): ${base64Data.substring(0, 50)}...`);
+  console.log(`[Prescription Analysis] Input base64Data (truncated): ${base64Data[0].substring(0, 50)}...`);
   
-  const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-prescription`, {
+  const analyzeResponse = await fetch(PDF_TO_IMAGE_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: [base64Data], mimeType })
+    body: JSON.stringify({ url: base64Data[0], mimeType })
   });
   
   if (!analyzeResponse.ok) {
