@@ -1,3 +1,4 @@
+'use client'
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
