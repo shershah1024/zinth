@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AnalysisResult } from '@/types/medical';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-const BATCH_SIZE = 3; // Adjust this value based on your requirements
 
 if (!BASE_URL) {
   throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');
@@ -35,12 +34,12 @@ async function uploadAndConvertFile(file: File): Promise<{ base64Images: string[
   };
 }
 
-async function analyzeImageBatch(batch: string[], mimeType: string): Promise<AnalysisResult[]> {
-  console.log(`[Image Analysis] Analyzing batch of ${batch.length} images`);
+async function analyzeImages(images: string[], mimeType: string): Promise<{ results: AnalysisResult[] }> {
+  console.log(`[Image Analysis] Analyzing ${images.length} images`);
   const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-health-reports`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: batch, mimeType })
+    body: JSON.stringify({ images, mimeType })
   });
   
   if (!analyzeResponse.ok) {
@@ -55,21 +54,7 @@ async function analyzeImageBatch(batch: string[], mimeType: string): Promise<Ana
     throw new Error("Analysis results do not contain an array of results as expected");
   }
   
-  return analysisData.results;
-}
-
-async function analyzeImages(images: string[], mimeType: string): Promise<{ results: AnalysisResult[] }> {
-  console.log(`[Image Analysis] Analyzing ${images.length} images in batches`);
-  const allResults: AnalysisResult[] = [];
-
-  for (let i = 0; i < images.length; i += BATCH_SIZE) {
-    const batch = images.slice(i, i + BATCH_SIZE);
-    const batchResults = await analyzeImageBatch(batch, mimeType);
-    allResults.push(...batchResults);
-  }
-
-  console.log("[Image Analysis] All batches processed");
-  return { results: allResults };
+  return analysisData;
 }
 
 async function storeResult(result: AnalysisResult, publicUrl: string, pageNumber: number): Promise<void> {
