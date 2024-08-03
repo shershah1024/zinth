@@ -31,18 +31,13 @@ interface PrescriptionAnalysisResult {
   public_url: string;
 }
 
-interface ImageData {
-  base64: string;
-  mimeType: string;
-}
-
-async function analyzePrescription(images: ImageData[]): Promise<PrescriptionAnalysisResult[]> {
+async function analyzePrescription(images: string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
   console.log(`[Prescription Analysis] Analyzing ${images.length} images`);
   try {
     const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-prescription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images })
+      body: JSON.stringify({ images, mimeType })
     });
     
     if (!analyzeResponse.ok) {
@@ -127,7 +122,11 @@ export async function POST(request: NextRequest) {
     console.log(`[POST] File uploaded and converted successfully. Public URL: ${publicUrl}`);
     console.log(`[POST] File processed into ${images.length} images`);
 
-    const analysisResults = await analyzePrescription(images);
+    // Extract base64 strings and determine mimeType
+    const base64Images = images.map((img: { base64: string; mimeType: string }) => img.base64);
+    const mimeType = images[0].mimeType; // Assume all images have the same mimeType
+
+    const analysisResults = await analyzePrescription(base64Images, mimeType);
 
     // Ensure public_url is set in the analysis results
     analysisResults[0].public_url = publicUrl;
