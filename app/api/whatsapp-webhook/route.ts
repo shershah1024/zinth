@@ -179,10 +179,13 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       throw new Error('NEXT_PUBLIC_BASE_URL is not set in environment variables');
     }
 
-    // Create FormData and append the file
+    // Read the file and create a Blob
+    const fileBuffer = await fs.readFile(tempFilePath);
+    const blob = new Blob([fileBuffer], { type: mimeType });
+
+    // Create FormData and append the file as a Blob
     const formData = new FormData();
-    const fileStream = await fs.readFile(tempFilePath);
-    formData.append('file', new Blob([fileStream], { type: mimeType }), preparedFilename);
+    formData.append('file', blob, preparedFilename);
 
     console.log('Calling upload-and-convert API...');
     // Call the upload-and-convert API
