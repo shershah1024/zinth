@@ -75,25 +75,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    console.log(`[File Upload] Received file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
+    console.log(`[File Upload] Received file: ${file.name}, type: ${file.type || 'undefined'}, size: ${file.size} bytes`);
 
     // Upload file to Supabase
     const publicUrl = await uploadToSupabase(file);
 
     // Get base64 data
-    let base64Data: string | string[] | undefined;
-    let mimeType: string | undefined = file.type;
+    let base64Data: string | string[];
+    let mimeType: string = 'image/png';  // Default to 'image/png'
 
     try {
       if (file.type === 'application/pdf') {
         // For PDF files, convert to PNG images
         base64Data = await convertPdfToImages(publicUrl);
-        mimeType = 'image/png';
         console.log(`[PDF Processing] Converted PDF into ${base64Data.length} PNG images`);
       } else {
         // For all other file types, including images and undefined types
         base64Data = await getBase64(file);
-        console.log(`[File Processing] Converted file to base64, original MIME type: ${mimeType || 'undefined'}`);
+        mimeType = file.type || 'image/png';  // Use original type if defined, else default to 'image/png'
+        console.log(`[File Processing] Converted file to base64, MIME type: ${mimeType}`);
       }
     } catch (error) {
       console.error('[File Processing] Error during file processing:', error);
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to process file' }, { status: 500 });
     }
 
-    console.log(`[File Processing] Final MIME type: ${mimeType || 'image/png'}`);
+    console.log(`[File Processing] Final MIME type: ${mimeType}`);
 
     if (Array.isArray(base64Data)) {
       console.log(`[File Processing] Number of images: ${base64Data.length}`);
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       publicUrl,
       base64Data,
-      mimeType: mimeType || 'image/png'  // Default to 'image/png' if mimeType is undefined
+      mimeType
     });
   } catch (error) {
     console.error('[Error] Error processing prescription:', error);
