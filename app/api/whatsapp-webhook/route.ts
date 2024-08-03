@@ -184,12 +184,11 @@ async function convertPdfToImages(publicUrl: string): Promise<{ url: string; bas
   };
 }
 
-async function classifyDocument(base64Images: string[], mimeType: string): Promise<string> {
-  // We'll classify based on the first image, assuming all pages are of the same type
+async function classifyDocument(base64Image: string, mimeType: string): Promise<string> {
   const response = await fetch(DOCUMENT_CLASSIFICATION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: base64Images[0], mimeType }),
+    body: JSON.stringify({ image: base64Image, mimeType }),
   });
 
   if (!response.ok) {
@@ -247,7 +246,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       mimeType = response.headers.get('content-type') || 'application/octet-stream';
     }
 
-    const classificationType = await classifyDocument(base64Images, mimeType);
+    const classificationType = await classifyDocument(base64Images[0], mimeType);
     console.log(`Document classified as: ${classificationType}`);
 
     let analysisResults: string[];
