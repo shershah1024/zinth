@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { FileText, Calendar, User, MessageSquare, Link } from "lucide-react";
+import { ChevronDown, Download, Eye, Calendar, User, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Supabase setup
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -98,15 +99,15 @@ export default async function OldImagingResultsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
-                      <a href={result.public_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
-                        <Link className="h-4 w-4" />
-                      </a>
-                      <a href={`/patient/${result.patient_number}`} className="text-green-500 hover:text-green-700">
-                        <User className="h-4 w-4" />
-                      </a>
-                      <a href={`/result/${result.id}`} className="text-purple-500 hover:text-purple-700">
-                        <FileText className="h-4 w-4" />
-                      </a>
+                      <Button variant="outline" size="icon" title="Expand">
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="icon" title="View">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="icon" title="Download">
+                        <Download className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
