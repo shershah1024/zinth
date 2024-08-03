@@ -3,7 +3,7 @@ import { ImagingResultsDisplay } from '@/components/ImagingResultsDisplay';
 import { Metadata } from 'next';
 
 // Define the type for the raw data from the API
-interface RawImagingResult {
+interface ApiImagingResult {
   id: number;
   created_at: string;
   patient_number: string;
@@ -14,15 +14,23 @@ interface RawImagingResult {
   doctor: string;
 }
 
+// Define the type for the API response
+interface ApiResponse {
+  data: ApiImagingResult[];
+  fetchedCount: number;
+  totalCount: number;
+  message: string;
+}
+
 // Define the type expected by ImagingResultsDisplay
-interface FormattedImagingResult {
+type FormattedImagingResult = {
   id: string;
   testName: string;
   testDate: string;
   fileUrl: string;
   fileType: 'image' | 'pdf';
-  observation: string;
-}
+  observation?: string;
+};
 
 // Function to determine file type based on URL
 function getFileType(url: string): 'image' | 'pdf' {
@@ -30,11 +38,7 @@ function getFileType(url: string): 'image' | 'pdf' {
 }
 
 // Function to format the raw data
-function formatImagingResults(rawResults: RawImagingResult[]): FormattedImagingResult[] {
-  if (!Array.isArray(rawResults)) {
-    console.error('Raw results is not an array:', rawResults);
-    return [];
-  }
+function formatImagingResults(rawResults: ApiImagingResult[]): FormattedImagingResult[] {
   return rawResults.map(result => ({
     id: result.id.toString(),
     testName: result.test,
@@ -52,15 +56,11 @@ export const metadata: Metadata = {
 };
 
 export default async function ImagingResultsPage() {
-  let rawResults: RawImagingResult[] = [];
+  let formattedResults: FormattedImagingResult[] = [];
   let error: string | null = null;
-
-  console.log('Starting to fetch imaging results');
 
   try {
     const apiUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-imaging-results`;
-    console.log('Fetching from URL:', apiUrl);
-
     const response = await fetch(apiUrl, { 
       cache: 'no-store',
       headers: {
@@ -68,33 +68,24 @@ export default async function ImagingResultsPage() {
       }
     });
     
-    console.log('Response status:', response.status);
-
     if (!response.ok) {
       throw new Error(`Failed to fetch imaging results: ${response.status} ${response.statusText}`);
     }
     
-    const data = await response.json();
-    console.log('Received data:', JSON.stringify(data, null, 2));
+    const apiResponse: ApiResponse = await response.json();
     
-    if (!Array.isArray(data)) {
-      console.error('API did not return an array. Received:', typeof data, data);
-      throw new Error('API did not return an array');
+    if (!apiResponse || !Array.isArray(apiResponse.data)) {
+      throw new Error('API did not return expected data structure');
     }
 
-    rawResults = data;
-    console.log(`Received ${rawResults.length} raw results`);
+    formattedResults = formatImagingResults(apiResponse.data);
+    console.log(`Fetched and formatted ${formattedResults.length} results`);
   } catch (e) {
     error = e instanceof Error ? e.message : 'An unknown error occurred';
     console.error('Error fetching imaging results:', error);
   }
 
-  console.log('Formatting results');
-  const formattedResults = formatImagingResults(rawResults);
-  console.log(`Formatted ${formattedResults.length} results`);
-
   if (error) {
-    console.log('Rendering error page');
     return (
       <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -105,7 +96,6 @@ export default async function ImagingResultsPage() {
     );
   }
 
-  console.log('Rendering results page');
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -114,11 +104,7 @@ export default async function ImagingResultsPage() {
           Below are your recent imaging test results. Click on each test to view more details and download the images or reports. 
           To view older results, use the button at the bottom of the list.
         </p>
-        {formattedResults.length > 0 ? (
-          <ImagingResultsDisplay results={formattedResults} />
-        ) : (
-          <p>No imaging results found.</p>
-        )}
+        <ImagingResultsDisplay results={formattedResults} />
       </div>
     </div>
   );
