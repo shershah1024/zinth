@@ -31,13 +31,18 @@ interface PrescriptionAnalysisResult {
   public_url: string;
 }
 
-async function analyzePrescription(images: string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
+interface ImageData {
+  base64: string;
+  mimeType: string;
+}
+
+async function analyzePrescription(images: ImageData[]): Promise<PrescriptionAnalysisResult[]> {
   console.log(`[Prescription Analysis] Analyzing ${images.length} images`);
   try {
     const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-prescription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images, mimeType })
+      body: JSON.stringify({ images })
     });
     
     if (!analyzeResponse.ok) {
@@ -107,7 +112,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
 
-    // Use the new upload-and-convert route
+    // Use the upload-and-convert route
     const uploadConvertResponse = await fetch(`${BASE_URL}/api/upload-and-convert`, {
       method: 'POST',
       body: formData
@@ -118,13 +123,11 @@ export async function POST(request: NextRequest) {
       throw new Error(`Upload and convert failed with status ${uploadConvertResponse.status}`);
     }
     
-    const { publicUrl, base64Data, mimeType } = await uploadConvertResponse.json();
+    const { publicUrl, images } = await uploadConvertResponse.json();
     console.log(`[POST] File uploaded and converted successfully. Public URL: ${publicUrl}`);
+    console.log(`[POST] File processed into ${images.length} images`);
 
-    const base64Images = Array.isArray(base64Data) ? base64Data : [base64Data];
-    console.log(`[POST] File processed into ${base64Images.length} images`);
-
-    const analysisResults = await analyzePrescription(base64Images, mimeType);
+    const analysisResults = await analyzePrescription(images);
 
     // Ensure public_url is set in the analysis results
     analysisResults[0].public_url = publicUrl;
