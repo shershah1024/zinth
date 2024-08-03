@@ -1,7 +1,7 @@
 // app/api/webhook/route.ts
 
 import { NextResponse } from 'next/server';
-import { sendMessage, sendImageMessage, sendDocumentMessage } from '@/utils/whatsappUtils';
+import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndPrepareMedia } from '@/utils/whatsappMediaUtils';
 
 // Types
@@ -155,13 +155,13 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     }
 
     const { arrayBuffer, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
-    
-    // Create a File object from the ArrayBuffer
-    const file = new File([arrayBuffer], preparedFilename, { type: mimeType });
 
-    // Create FormData and append the file
+    // Create a Blob from the ArrayBuffer
+    const blob = new Blob([arrayBuffer], { type: mimeType });
+
+    // Create FormData and append the blob
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', blob, preparedFilename);
 
     // Get the base URL from environment variables
     const baseUrl = process.env.NEXT_PUBLIC_API_URL;
