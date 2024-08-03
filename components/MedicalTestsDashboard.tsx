@@ -3,9 +3,8 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Activity, X, Search, AlertCircle } from 'lucide-react';
+import { Activity, X, Search, AlertCircle, Calendar } from 'lucide-react';
 
-// Updated types to allow string or number for values
 interface HistoryRecord {
   date: string;
   value: number | string;
@@ -29,11 +28,24 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
   const [selectedElement, setSelectedElement] = useState<ProcessedTest | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const filteredTestElements = useMemo(() => 
-    initialTestElements.filter(element =>
+  const groupedAndFilteredTests = useMemo(() => {
+    const filtered = initialTestElements.filter(element =>
       element.name.toLowerCase().includes(searchTerm.toLowerCase())
-    ),
-    [initialTestElements, searchTerm]
+    );
+
+    return filtered.reduce((acc, test) => {
+      const date = test.latestDate;
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(test);
+      return acc;
+    }, {} as Record<string, ProcessedTest[]>);
+  }, [initialTestElements, searchTerm]);
+
+  const sortedDates = useMemo(() => 
+    Object.keys(groupedAndFilteredTests).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()),
+    [groupedAndFilteredTests]
   );
 
   const handleElementClick = (element: ProcessedTest) => setSelectedElement(element);
@@ -42,7 +54,7 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
 
   const isAbnormal = (value: number | string, normalRange: string): boolean => {
     const numericValue = typeof value === 'string' ? parseFloat(value) : value;
-    if (isNaN(numericValue)) return false; // Handle non-numeric strings
+    if (isNaN(numericValue)) return false;
     const [min, max] = normalRange.split('-').map(Number);
     return numericValue < min || numericValue > max;
   };
@@ -180,16 +192,24 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
       </div>
 
-      <motion.div 
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        {filteredTestElements.map(element => (
-          <TestCard key={element.id} element={element} />
-        ))}
-      </motion.div>
+      {sortedDates.map(date => (
+        <div key={date} className="mb-8">
+          <div className="flex items-center mb-4">
+            <Calendar className="w-6 h-6 mr-2 text-green-600" />
+            <h2 className="text-2xl font-semibold text-gray-800">{date}</h2>
+          </div>
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            {groupedAndFilteredTests[date].map(element => (
+              <TestCard key={element.id} element={element} />
+            ))}
+          </motion.div>
+        </div>
+      ))}
 
       <AnimatePresence>
         {selectedElement && <Modal />}

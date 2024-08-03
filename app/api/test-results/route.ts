@@ -14,7 +14,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 export async function GET(request: NextRequest) {
   console.log('Received GET request for test results');
   
-  // Disable caching
   const headers = new Headers({
     'Cache-Control': 'no-store, max-age=0',
     'Pragma': 'no-cache',
@@ -24,7 +23,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('test_results')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('date', { ascending: false });
 
     if (error) {
       console.error('Supabase query error:', error);
@@ -38,38 +37,42 @@ export async function GET(request: NextRequest) {
 
     console.log(`Fetched ${data.length} test results`);
 
-    // Process the data to match the format expected by the component
+    // Process the data to group by component and include all dates
     const processedData = (data as MedicalTest[]).reduce<ProcessedTest[]>((acc, test) => {
       const normalizedComponent = test.component.toLowerCase().trim();
       const existingTestIndex = acc.findIndex(t => t.name.toLowerCase().trim() === normalizedComponent);
       
+      const historyEntry = {
+        date: test.date,
+        value: test.number_value ?? test.text_value ?? ''
+      };
+
       if (existingTestIndex !== -1) {
-        acc[existingTestIndex].history.push({
-          date: test.date,
-          value: test.number_value ?? test.text_value ?? ''
-        });
+        acc[existingTestIndex].history.push(historyEntry);
         // Update latest value and date if this test is more recent
         if (new Date(test.date) > new Date(acc[existingTestIndex].latestDate)) {
-          acc[existingTestIndex].latestValue = test.number_value ?? test.text_value ?? '';
+          acc[existingTestIndex].latestValue = historyEntry.value;
           acc[existingTestIndex].latestDate = test.date;
         }
       } else {
         acc.push({
           id: test.id,
           name: test.component, // Keep the original case for display
-          latestValue: test.number_value ?? test.text_value ?? '',
+          latestValue: historyEntry.value,
           unit: test.unit,
           latestDate: test.date,
           normalRange: test.normal_range_text ?? `${test.normal_range_min}-${test.normal_range_max}`,
-          history: [{
-            date: test.date,
-            value: test.number_value ?? test.text_value ?? ''
-          }]
+          history: [historyEntry]
         });
       }
       
       return acc;
     }, []);
+
+    // Sort history for each test component by date (newest first)
+    processedData.forEach(test => {
+      test.history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
 
     console.log(`Processed ${processedData.length} unique test components`);
     return NextResponse.json(processedData, { headers });
