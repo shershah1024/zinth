@@ -31,6 +31,23 @@ interface PrescriptionAnalysisResult {
   public_url: string;
 }
 
+async function uploadAndConvertFile(formData: FormData): Promise<{ publicUrl: string; base64Data: string | string[]; mimeType: string }> {
+  console.log('[File Upload] Starting file upload and conversion');
+  const uploadResponse = await fetch(`${BASE_URL}/api/upload-file-supabase`, {
+    method: 'POST',
+    body: formData
+  });
+  
+  if (!uploadResponse.ok) {
+    console.error(`[File Upload] Upload failed with status ${uploadResponse.status}`);
+    throw new Error(`Upload failed with status ${uploadResponse.status}`);
+  }
+  
+  const { publicUrl, base64Data, mimeType } = await uploadResponse.json();
+  console.log(`[File Upload] File uploaded and converted successfully. Public URL: ${publicUrl}, MIME type: ${mimeType}`);
+  return { publicUrl, base64Data, mimeType };
+}
+
 async function analyzePrescription(publicUrl: string, base64Data: string | string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
   console.log(`[Prescription Analysis] Analyzing prescription. MIME type: ${mimeType}`);
   try {
@@ -118,18 +135,7 @@ export async function POST(request: NextRequest) {
     console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
 
     // Upload file and get base64 data
-    console.log('[POST] Uploading file and converting to base64');
-    const uploadResponse = await fetch(`${BASE_URL}/api/upload-file-supabase`, {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!uploadResponse.ok) {
-      console.error(`[POST] Upload failed with status ${uploadResponse.status}`);
-      throw new Error(`Upload failed with status ${uploadResponse.status}`);
-    }
-    
-    const { publicUrl, base64Data, mimeType } = await uploadResponse.json();
+    const { publicUrl, base64Data, mimeType } = await uploadAndConvertFile(formData);
     console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}, MIME type: ${mimeType}, Base64 data type: ${typeof base64Data}, Length: ${Array.isArray(base64Data) ? base64Data.length : base64Data.length}`);
 
     const analysisResults = await analyzePrescription(publicUrl, base64Data, mimeType);
