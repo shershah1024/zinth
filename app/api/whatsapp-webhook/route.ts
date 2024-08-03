@@ -6,6 +6,8 @@ import { downloadAndPrepareMedia } from '@/utils/whatsappMediaUtils';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
 
 
 // Types
@@ -151,7 +153,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       throw new Error(`Invalid ${message.type} message structure`);
     }
 
-    let filename: string | undefined;
+    let filename: string;
     if (message.type === 'document' && message.document) {
       filename = message.document.filename;
       console.log(`Processing document: ${filename}`);
@@ -172,48 +174,20 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
     console.log(`Temporary file created at: ${tempFilePath}`);
 
-    // Create FormData and append the file
-    const formData = new FormData();
-    const fileStream = await fs.readFile(tempFilePath);
-    formData.append('file', new Blob([fileStream], { type: mimeType }), preparedFilename);
+    // Read the file and create a File object
+    const fileBuffer = await fs.readFile(tempFilePath);
+    const file = new File([fileBuffer], preparedFilename, { type: mimeType });
 
-    // Get the base URL from environment variables
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!baseUrl) {
-      throw new Error('NEXT_PUBLIC_API_URL is not set in environment variables');
-    }
-
-    console.log('Calling upload-and-convert API...');
-    // Call the upload-and-convert API with the full URL
-    const response = await fetch(`${baseUrl}/api/upload-and-convert`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Upload and convert failed with status ${response.status}. Error: ${errorText}`);
-      throw new Error(`Upload and convert failed with status ${response.status}. Error: ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('Upload and convert result:', JSON.stringify(result, null, 2));
-
-    // Truncate the base64 data for logging
-    let truncatedResult;
-    if (Array.isArray(result.base64_images)) {
-      truncatedResult = result.base64_images.map((img: string) => img.substring(0, 50) + '...');
-    } else {
-      truncatedResult = (result.base64_images as string).substring(0, 50) + '...';
-    }
+    console.log('Calling uploadFile function...');
+    // Call the uploadFile function
+    const publicUrl = await uploadFile(file);
+    console.log(`File uploaded successfully. Public URL: ${publicUrl}`);
 
     // Prepare the response message
     let responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received and processed.\n`;
     responseMessage += `Filename: ${preparedFilename}\n`;
-    responseMessage += `Public URL: ${result.url}\n`;
+    responseMessage += `Public URL: ${publicUrl}\n`;
     responseMessage += `Original MIME Type: ${mimeType}\n`;
-    responseMessage += `Converted MIME Type: ${result.mimeType}\n`;
-    responseMessage += `Truncated result: ${JSON.stringify(truncatedResult)}\n`;
 
     console.log('Final response message:', responseMessage);
 
@@ -228,6 +202,35 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       await fs.unlink(tempFilePath).catch(console.error);
     }
   }
+}
+
+// The uploadFile function you provided
+async function uploadFile(file: File): Promise<string> {
+  console.log(`[File Upload] Starting upload for file: ${file.name}, size: ${file.size} bytes`);
+  
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(UPLOAD_FILE_ENDPOINT, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[File Upload] Upload failed with status ${response.status}. Error: ${errorText}`);
+    throw new Error(`Upload failed with status ${response.status}. Error: ${errorText}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.success || !data.publicUrl) {
+    console.error('[File Upload] Invalid response from server:', data);
+    throw new Error('Invalid response from server');
+  }
+
+  console.log(`[File Upload] File uploaded successfully. Public URL: ${data.publicUrl}`);
+  return data.publicUrl;
 }
 
 async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
