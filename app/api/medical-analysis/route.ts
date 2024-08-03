@@ -58,7 +58,7 @@ async function processFile(file: File, publicUrl: string): Promise<{ base64Image
 
 async function analyzeImages(images: string[], mimeType: string): Promise<{ results: AnalysisResult[] }> {
   console.log(`[Image Analysis] Analyzing ${images.length} images`);
-  const analyzeResponse = await fetch(`${BASE_URL}/api/analyze`, {
+  const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-health-reports`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ images, mimeType })
