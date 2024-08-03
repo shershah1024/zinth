@@ -188,6 +188,9 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     const uploadResult = await uploadResponse.json();
 
+    // Determine the MIME type to send to the classification API
+    const classificationMimeType = mimeType.toLowerCase() === 'application/pdf' ? 'image/png' : uploadResult.mimeType;
+
     // Call the document classification API
     const classificationResponse = await fetch(`${baseUrl}/api/find-document-type`, {
       method: 'POST',
@@ -196,7 +199,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       },
       body: JSON.stringify({
         image: uploadResult.base64_images[0], // Assuming the first image if there are multiple
-        mimeType: uploadResult.mimeType,
+        mimeType: classificationMimeType,
       }),
     });
 
@@ -210,7 +213,8 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     let responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received and processed.\n`;
     responseMessage += `Filename: ${preparedFilename}\n`;
     responseMessage += `Document Type: ${classificationResult.type}\n`;
-    responseMessage += `MIME Type: ${uploadResult.mimeType}\n`;
+    responseMessage += `Original MIME Type: ${mimeType}\n`;
+    responseMessage += `Classification MIME Type: ${classificationMimeType}\n`;
     responseMessage += `Public URL: ${uploadResult.url}\n`;
 
     // Truncate the base64 image data for the response
