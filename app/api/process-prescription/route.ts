@@ -31,26 +31,6 @@ interface PrescriptionAnalysisResult {
   public_url: string;
 }
 
-async function uploadAndConvertFile(formData: FormData): Promise<{ publicUrl: string; base64Data: string | string[]; mimeType: string }> {
-  console.log('[File Upload] Starting file upload and conversion');
-  const uploadResponse = await fetch(`${BASE_URL}/api/upload-file-supabase`, {
-    method: 'POST',
-    body: formData
-  });
-  
-  if (!uploadResponse.ok) {
-    console.error(`[File Upload] Upload failed with status ${uploadResponse.status}`);
-    throw new Error(`Upload failed with status ${uploadResponse.status}`);
-  }
-  
-  const responseData = await uploadResponse.json();
-  console.log('[File Upload] Response from upload-file-supabase:', JSON.stringify(responseData, null, 2));
-  
-  const { url: publicUrl, base64_images: base64Data, mimeType } = responseData;
-  console.log(`[File Upload] File uploaded and converted. Public URL: ${publicUrl}, MIME type: ${mimeType}, Base64 data type: ${typeof base64Data}, Length: ${Array.isArray(base64Data) ? base64Data.length : base64Data.length}`);
-  return { publicUrl, base64Data, mimeType };
-}
-
 async function analyzePrescription(publicUrl: string, base64Data: string | string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
   console.log(`[Prescription Analysis] Analyzing prescription. MIME type: ${mimeType}`);
   try {
@@ -127,20 +107,14 @@ async function storePrescription(results: PrescriptionAnalysisResult[]): Promise
 export async function POST(request: NextRequest) {
   console.log('[POST] Starting prescription processing');
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
+    const { publicUrl, base64Data, mimeType } = await request.json();
 
-    if (!file) {
-      console.error('[POST] No file uploaded');
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    if (!publicUrl || !base64Data || !mimeType) {
+      console.error('[POST] Missing required data');
+      return NextResponse.json({ error: 'Missing required data' }, { status: 400 });
     }
 
-    console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
-
-    // Upload file and get base64 data
-    const { publicUrl, base64Data, mimeType } = await uploadAndConvertFile(formData);
-    console.log('[POST] Data received from uploadAndConvertFile:');
-    console.log(JSON.stringify({ publicUrl, mimeType, base64DataType: typeof base64Data, base64DataLength: Array.isArray(base64Data) ? base64Data.length : base64Data.length }, null, 2));
+    console.log(`[POST] Received data for processing. Public URL: ${publicUrl}, MIME type: ${mimeType}`);
 
     const analysisResults = await analyzePrescription(publicUrl, base64Data, mimeType);
 
