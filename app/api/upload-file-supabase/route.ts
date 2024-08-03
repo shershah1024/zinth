@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // Upload the file
     const { data, error } = await supabase.storage
-      .from('pdfs')
+      .from('all_file')
       .upload(fileName, fileBuffer, {
         contentType: file.type,
       });

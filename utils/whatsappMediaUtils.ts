@@ -1,4 +1,7 @@
 import { fetchWithTimeout, handleFetchErrors } from './whatsappUtils';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 interface MediaInfo {
   messaging_product: string;
@@ -27,7 +30,7 @@ export async function getMediaInfo(mediaId: string): Promise<MediaInfo> {
   }
 }
 
-export async function downloadMedia(mediaUrl: string): Promise<ArrayBuffer> {
+export async function downloadMedia(mediaUrl: string): Promise<Buffer> {
   try {
     const response = await fetchWithTimeout(mediaUrl, {
       method: 'GET',
@@ -36,17 +39,17 @@ export async function downloadMedia(mediaUrl: string): Promise<ArrayBuffer> {
       },
     });
     await handleFetchErrors(response);
-    return await response.arrayBuffer();
+    return Buffer.from(await response.arrayBuffer());
   } catch (error) {
     console.error('Error downloading media:', error);
     throw error;
   }
 }
 
-export async function downloadAndPrepareMedia(mediaId: string, originalFilename?: string): Promise<{ arrayBuffer: ArrayBuffer; filename: string; mimeType: string }> {
+export async function downloadAndPrepareMedia(mediaId: string, originalFilename?: string): Promise<{ filePath: string; filename: string; mimeType: string }> {
   try {
     const mediaInfo = await getMediaInfo(mediaId);
-    const arrayBuffer = await downloadMedia(mediaInfo.url);
+    const binaryData = await downloadMedia(mediaInfo.url);
 
     let filename = originalFilename || `media_${Date.now()}`;
     if (!filename.includes('.')) {
@@ -54,9 +57,14 @@ export async function downloadAndPrepareMedia(mediaId: string, originalFilename?
       filename += `.${extension}`;
     }
 
-    console.log(`Media downloaded: ${filename}`);
+    const tempDir = os.tmpdir();
+    const filePath = path.join(tempDir, filename);
 
-    return { arrayBuffer, filename, mimeType: mediaInfo.mime_type };
+    await fs.promises.writeFile(filePath, binaryData);
+
+    console.log(`Media downloaded and saved: ${filePath}`);
+
+    return { filePath, filename, mimeType: mediaInfo.mime_type };
   } catch (error) {
     console.error('Error downloading and preparing media:', error);
     throw error;
