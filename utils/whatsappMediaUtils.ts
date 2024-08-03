@@ -1,7 +1,18 @@
 import { fetchWithTimeout, handleFetchErrors } from './whatsappUtils';
-import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
+import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  console.error('Supabase environment variables are not set');
+  throw new Error('Supabase environment variables are not set');
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 interface MediaInfo {
   messaging_product: string;
@@ -12,7 +23,7 @@ interface MediaInfo {
   id: string;
 }
 
-export async function getMediaInfo(mediaId: string): Promise<MediaInfo> {
+async function getMediaInfo(mediaId: string): Promise<MediaInfo> {
   const url = `https://graph.facebook.com/v20.0/${mediaId}`;
   try {
     const response = await fetchWithTimeout(url, {
@@ -30,7 +41,7 @@ export async function getMediaInfo(mediaId: string): Promise<MediaInfo> {
   }
 }
 
-export async function downloadMedia(mediaUrl: string): Promise<Buffer> {
+async function downloadMedia(mediaUrl: string): Promise<Buffer> {
   try {
     const response = await fetchWithTimeout(mediaUrl, {
       method: 'GET',
@@ -46,27 +57,65 @@ export async function downloadMedia(mediaUrl: string): Promise<Buffer> {
   }
 }
 
-export async function downloadAndPrepareMedia(mediaId: string, originalFilename?: string): Promise<{ filePath: string; filename: string; mimeType: string }> {
+async function saveTempFile(buffer: Buffer, filename: string): Promise<string> {
+  const tempDir = os.tmpdir();
+  const filePath = path.join(tempDir, filename);
+  await fs.writeFile(filePath, buffer);
+  return filePath;
+}
+
+async function uploadFileToSupabase(filePath: string, contentType: string): Promise<{ path: string; publicUrl: string }> {
+  try {
+    const fileContent = await fs.readFile(filePath);
+    const fileName = `${Date.now()}_${path.basename(filePath)}`;
+
+    const { data, error } = await supabase.storage
+      .from('all_file')
+      .upload(fileName, fileContent, {
+        contentType: contentType,
+      });
+
+    if (error) {
+      throw new Error(`Error uploading file: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('No data returned from upload');
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('all_file')
+      .getPublicUrl(data.path);
+
+    if (!publicUrlData) {
+      throw new Error('Error generating public URL: No data returned');
+    }
+
+    return { 
+      path: data.path,
+      publicUrl: publicUrlData.publicUrl
+    };
+  } finally {
+    // Clean up the temporary file
+    await fs.unlink(filePath).catch(console.error);
+  }
+}
+
+export async function downloadAndUploadMedia(mediaId: string): Promise<{ path: string; publicUrl: string }> {
   try {
     const mediaInfo = await getMediaInfo(mediaId);
     const binaryData = await downloadMedia(mediaInfo.url);
 
-    let filename = originalFilename || `media_${Date.now()}`;
-    if (!filename.includes('.')) {
-      const extension = mediaInfo.mime_type.split('/')[1];
-      filename += `.${extension}`;
-    }
+    const filename = `media_${Date.now()}.${mediaInfo.mime_type.split('/')[1]}`;
+    const tempFilePath = await saveTempFile(binaryData, filename);
 
-    const tempDir = os.tmpdir();
-    const filePath = path.join(tempDir, filename);
+    const result = await uploadFileToSupabase(tempFilePath, mediaInfo.mime_type);
 
-    await fs.promises.writeFile(filePath, binaryData);
+    console.log(`Media downloaded and uploaded to Supabase: ${result.path}`);
 
-    console.log(`Media downloaded and saved: ${filePath}`);
-
-    return { filePath, filename, mimeType: mediaInfo.mime_type };
+    return result;
   } catch (error) {
-    console.error('Error downloading and preparing media:', error);
+    console.error('Error downloading and uploading media:', error);
     throw error;
   }
 }

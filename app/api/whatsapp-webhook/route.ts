@@ -2,7 +2,8 @@
 
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
-import { downloadAndPrepareMedia } from '@/utils/whatsappMediaUtils';
+import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
+
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -145,7 +146,6 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message from ${sender}:`, message[message.type as 'image' | 'document']?.id);
-  let tempFilePath: string | undefined;
 
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
@@ -153,66 +153,18 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       throw new Error(`Invalid ${message.type} message structure`);
     }
 
-    let filename: string | undefined;
-    if (message.type === 'document' && message.document) {
-      filename = message.document.filename;
-    } else if (message.type === 'image' && message.image) {
-      const fileExtension = message.image.mime_type.split('/')[1];
-      filename = `image_${Date.now()}.${fileExtension}`;
-    } else {
-      throw new Error(`Unsupported media type: ${message.type}`);
-    }
+    // Use downloadAndUploadMedia function to handle the entire process
+    const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
 
-    const { filePath, filename: preparedFilename, mimeType } = await downloadAndPrepareMedia(mediaInfo.id, filename);
-    tempFilePath = filePath;
-
-    // Create FormData and append the file
-    const formData = new FormData();
-    const fileBuffer = await fs.readFile(tempFilePath);
-    formData.append('file', new Blob([fileBuffer]), preparedFilename);
-
-    // Get the base URL from environment variables
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!baseUrl) {
-      throw new Error('NEXT_PUBLIC_API_URL is not set in environment variables');
-    }
-
-    // Call the upload-and-convert API with the full URL
-    const response = await fetch(`${baseUrl}/api/upload-and-convert`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Upload and convert failed with status ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    // Truncate the base64 data
-    let truncatedResult;
-    if (Array.isArray(result.base64_images)) {
-      truncatedResult = result.base64_images.map((img: string) => img.substring(0, 50) + '...');
-    } else {
-      truncatedResult = (result.base64_images as string).substring(0, 50) + '...';
-    }
-
-    // Prepare the response with public URL and MIME type
-    const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
-Filename: ${preparedFilename}
-Public URL: ${result.url}
-MIME Type: ${mimeType}
-Truncated result: ${JSON.stringify(truncatedResult)}`;
+    // Prepare the response with the path and public URL
+    const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and uploaded.
+Path: ${path}
+Public URL: ${publicUrl}`;
 
     return responseMessage;
   } catch (error) {
     console.error(`Error handling ${message.type} message from ${sender}:`, error);
     return `Sorry, there was an error processing your ${message.type}.`;
-  } finally {
-    // Clean up: delete the temporary file
-    if (tempFilePath) {
-      await fs.unlink(tempFilePath).catch(console.error);
-    }
   }
 }
 

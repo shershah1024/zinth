@@ -1,4 +1,4 @@
-//app/api/upload-file-supabase
+//app/api/upload-file-supabase/route.ts
 
 
 import { NextRequest, NextResponse } from 'next/server';
