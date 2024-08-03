@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AnalysisResult, TestComponent } from '@/types/medical';
+import { AnalysisResult } from '@/types/medical';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+const BATCH_SIZE = 3; // Adjust this value based on your requirements
 
 if (!BASE_URL) {
   throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');
@@ -10,62 +11,36 @@ if (!BASE_URL) {
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
-async function uploadAndConvertPdf(file: File): Promise<{ publicUrl: string; base64Images: string[]; }> {
-  console.log('[Upload and Convert] Starting PDF upload and conversion');
+async function uploadAndConvertFile(file: File): Promise<{ base64Images: string[]; mimeType: string; publicUrl: string }> {
+  console.log(`[File Processing] Processing file: ${file.name}, type: ${file.type}`);
   
   const formData = new FormData();
   formData.append('file', file);
 
   const response = await fetch(`${BASE_URL}/api/upload-and-convert`, {
     method: 'POST',
-    body: formData,
+    body: formData
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[Upload and Convert] Failed with status ${response.status}. Error: ${errorText}`);
-    throw new Error(`Upload and convert failed with status ${response.status}. Error: ${errorText}`);
+    console.error(`[File Processing] Failed with status ${response.status}`);
+    throw new Error(`File processing failed with status ${response.status}`);
   }
 
-  const result = await response.json();
-  console.log('[Upload and Convert] Successfully uploaded and converted PDF');
-
-  if (!result.url || !result.base64_images) {
-    console.error('[Upload and Convert] Invalid response structure');
-    throw new Error('Invalid response from upload and convert');
-  }
-
+  const data = await response.json();
   return {
-    publicUrl: result.url,
-    base64Images: result.base64_images,
+    base64Images: Array.isArray(data.base64_images) ? data.base64_images : [data.base64_images],
+    mimeType: data.mimeType,
+    publicUrl: data.url
   };
 }
 
-async function processFile(file: File, publicUrl: string): Promise<{ base64Images: string[]; mimeType: string; }> {
-  console.log(`[File Processing] Processing file: ${file.name}, type: ${file.type}`);
-  
-  if (file.type === 'application/pdf') {
-    const { base64Images } = await uploadAndConvertPdf(file);
-    return {
-      base64Images: base64Images,
-      mimeType: 'image/png'
-    };
-  } else {
-    const fileBuffer = await file.arrayBuffer();
-    const base64Image = Buffer.from(fileBuffer).toString('base64');
-    return {
-      base64Images: [base64Image],
-      mimeType: file.type
-    };
-  }
-}
-
-async function analyzeImages(images: string[], mimeType: string): Promise<{ results: AnalysisResult[] }> {
-  console.log(`[Image Analysis] Analyzing ${images.length} images`);
+async function analyzeImageBatch(batch: string[], mimeType: string): Promise<AnalysisResult[]> {
+  console.log(`[Image Analysis] Analyzing batch of ${batch.length} images`);
   const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-health-reports`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images, mimeType })
+    body: JSON.stringify({ images: batch, mimeType })
   });
   
   if (!analyzeResponse.ok) {
@@ -74,14 +49,27 @@ async function analyzeImages(images: string[], mimeType: string): Promise<{ resu
   }
   
   const analysisData = await analyzeResponse.json();
-  console.log("[Image Analysis] Analysis results:", JSON.stringify(analysisData, null, 2));
   
   if (!analysisData.results || !Array.isArray(analysisData.results)) {
     console.error("[Image Analysis] Unexpected analysis results structure");
     throw new Error("Analysis results do not contain an array of results as expected");
   }
   
-  return analysisData;
+  return analysisData.results;
+}
+
+async function analyzeImages(images: string[], mimeType: string): Promise<{ results: AnalysisResult[] }> {
+  console.log(`[Image Analysis] Analyzing ${images.length} images in batches`);
+  const allResults: AnalysisResult[] = [];
+
+  for (let i = 0; i < images.length; i += BATCH_SIZE) {
+    const batch = images.slice(i, i + BATCH_SIZE);
+    const batchResults = await analyzeImageBatch(batch, mimeType);
+    allResults.push(...batchResults);
+  }
+
+  console.log("[Image Analysis] All batches processed");
+  return { results: allResults };
 }
 
 async function storeResult(result: AnalysisResult, publicUrl: string, pageNumber: number): Promise<void> {
@@ -116,22 +104,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
 
-    // Upload file
-    console.log('[POST] Uploading file');
-    const uploadResponse = await fetch(`${BASE_URL}/api/upload-file-supabase`, {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!uploadResponse.ok) {
-      console.error(`[POST] Upload failed with status ${uploadResponse.status}`);
-      throw new Error(`Upload failed with status ${uploadResponse.status}`);
-    }
-    
-    const { publicUrl } = await uploadResponse.json();
-    console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}`);
-
-    const { base64Images, mimeType } = await processFile(file, publicUrl);
+    const { base64Images, mimeType, publicUrl } = await uploadAndConvertFile(file);
     console.log(`[POST] File processed into ${base64Images.length} images`);
 
     const analysisResults = await analyzeImages(base64Images, mimeType);
