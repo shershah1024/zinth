@@ -107,24 +107,25 @@ export async function POST(request: NextRequest) {
 
     console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
 
-    // Use the new upload-and-convert route
-    const uploadConvertResponse = await fetch(`${BASE_URL}/api/upload-and-convert`, {
+    // Upload file and get base64 data
+    console.log('[POST] Uploading file and converting to base64');
+    const uploadResponse = await fetch(`${BASE_URL}/api/upload-file-supabase`, {
       method: 'POST',
       body: formData
     });
     
-    if (!uploadConvertResponse.ok) {
-      console.error(`[POST] Upload and convert failed with status ${uploadConvertResponse.status}`);
-      throw new Error(`Upload and convert failed with status ${uploadConvertResponse.status}`);
+    if (!uploadResponse.ok) {
+      console.error(`[POST] Upload failed with status ${uploadResponse.status}`);
+      throw new Error(`Upload failed with status ${uploadResponse.status}`);
     }
     
-    const { publicUrl, base64Data, mimeType } = await uploadConvertResponse.json();
-    console.log(`[POST] File uploaded and converted successfully. Public URL: ${publicUrl}`);
+    const { publicUrl, base64Data, mimeType } = await uploadResponse.json();
+    console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}`);
 
-    const base64Images = Array.isArray(base64Data) ? base64Data : [base64Data];
-    console.log(`[POST] File processed into ${base64Images.length} images`);
+    const images = Array.isArray(base64Data) ? base64Data : [base64Data];
+    console.log(`[POST] Processed ${images.length} images`);
 
-    const analysisResults = await analyzePrescription(base64Images, mimeType);
+    const analysisResults = await analyzePrescription(images, mimeType);
 
     // Ensure public_url is set in the analysis results
     analysisResults[0].public_url = publicUrl;
