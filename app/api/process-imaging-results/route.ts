@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-const PDF_TO_IMAGE_API_URL = 'https://pdftobase64image-jzfcn33k5q-uc.a.run.app/pdf-to-base64/';
+const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
@@ -18,14 +18,11 @@ interface ImagingResult {
   doctor_name: string;
 }
 
-async function convertPdfToImages(file: File): Promise<string[]> {
-  console.log(`[PDF Conversion] Starting conversion for file: ${file.name}`);
-  const formData = new FormData();
-  formData.append('file', file);
+async function convertPdfToImages(publicUrl: string): Promise<string[]> {
+  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
 
-  const response = await fetch(PDF_TO_IMAGE_API_URL, {
-    method: 'POST',
-    body: formData
+  const response = await fetch(`${PDF_TO_IMAGE_API_URL}?url=${encodeURIComponent(publicUrl)}`, {
+    method: 'POST'
   });
 
   console.log(`[PDF Conversion] Response status: ${response.status}`);
@@ -47,11 +44,11 @@ async function convertPdfToImages(file: File): Promise<string[]> {
   return data.base64_images;
 }
 
-async function processFile(file: File): Promise<{ base64Images: string[]; mimeType: string; }> {
+async function processFile(file: File, publicUrl: string): Promise<{ base64Images: string[]; mimeType: string; }> {
   console.log(`[File Processing] Processing file: ${file.name}, type: ${file.type}`);
   
   if (file.type === 'application/pdf') {
-    const images = await convertPdfToImages(file);
+    const images = await convertPdfToImages(publicUrl);
     return {
       base64Images: images,
       mimeType: 'image/png'
@@ -102,7 +99,7 @@ async function storeImagingResult(result: ImagingResult, publicUrl: string, pati
       doctor: result.doctor_name
     },
     publicUrl,
-    patient_number: '919885842349'
+    patient_number: patientNumber
   };
 
   console.log('[Imaging Storage] Data to be sent:', JSON.stringify(imagingData, null, 2));
@@ -153,7 +150,7 @@ export async function POST(request: NextRequest) {
     const { publicUrl } = await uploadResponse.json();
     console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}`);
 
-    const { base64Images, mimeType } = await processFile(file);
+    const { base64Images, mimeType } = await processFile(file, publicUrl);
     console.log(`[POST] File processed into ${base64Images.length} images`);
 
     const analysisResults = await analyzeImagingResult(base64Images, mimeType, doctorName);
