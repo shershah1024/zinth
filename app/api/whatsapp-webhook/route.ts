@@ -12,8 +12,16 @@ interface WhatsAppMessage {
   type: 'text' | 'audio' | 'document' | 'image' | 'interactive';
   text?: { body: string };
   audio?: { id: string; mime_type: string };
-  document?: { id: string; mime_type: string; filename: string };
-  image?: { id: string; mime_type: string };
+  document?: {
+    filename: string;
+    mime_type: string;
+    sha256: string;
+    id: string;
+  };
+  image?: {
+    id: string;
+    mime_type: string;
+  };
   interactive?: {
     type: 'button_reply';
     button_reply: { id: string; title: string };
@@ -22,20 +30,21 @@ interface WhatsAppMessage {
 
 interface WhatsAppWebhookData {
   object: string;
-  entry: [{
+  entry: Array<{
     id: string;
-    changes: [{
+    changes: Array<{
       value: {
         messaging_product: string;
         metadata: {
           display_phone_number: string;
           phone_number_id: string;
         };
-        contacts: [{ profile: { name: string }; wa_id: string }];
-        messages: WhatsAppMessage[];
+        contacts?: Array<{ profile: { name: string }; wa_id: string }>;
+        messages?: WhatsAppMessage[];
       };
-    }];
-  }];
+      field: string;
+    }>;
+  }>;
 }
 
 // Webhook verification (for GET requests)
@@ -62,9 +71,35 @@ export async function POST(req: Request) {
     const data: WhatsAppWebhookData = await req.json();
     console.log('Received webhook data:', JSON.stringify(data, null, 2));
 
-    const message = data.entry[0].changes[0].value.messages[0];
-    const sender = data.entry[0].changes[0].value.contacts[0].wa_id;
-    const phoneNumberId = data.entry[0].changes[0].value.metadata.phone_number_id;
+    const entry = data.entry[0];
+    if (!entry) {
+      console.log('No entry in webhook data');
+      return NextResponse.json({ status: "Ignored" });
+    }
+
+    const change = entry.changes[0];
+    if (!change) {
+      console.log('No change in webhook data');
+      return NextResponse.json({ status: "Ignored" });
+    }
+
+    const value = change.value;
+
+    // Check if the contacts field is present
+    if (!value.contacts || value.contacts.length === 0) {
+      console.log('Ignoring webhook data without contacts field');
+      return NextResponse.json({ status: "Ignored" });
+    }
+
+    // Check if the messages field is present
+    if (!value.messages || value.messages.length === 0) {
+      console.log('Ignoring webhook data without messages');
+      return NextResponse.json({ status: "Ignored" });
+    }
+
+    const message = value.messages[0];
+    const sender = value.contacts[0].wa_id;
+    const phoneNumberId = value.metadata.phone_number_id;
 
     let response: string;
 
@@ -94,14 +129,36 @@ export async function POST(req: Request) {
 }
 
 async function handleTextMessage(message: WhatsAppMessage, sender: string): Promise<string> {
-  console.log('Received text message:', message.text?.body);
-  return `You said: ${message.text?.body}`;
+  if (message.text?.body) {
+    console.log('Received text message:', message.text.body);
+    return `You said: ${message.text.body}`;
+  }
+  return "Received an empty text message";
 }
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string, phoneNumberId: string): Promise<string> {
   console.log(`Received ${message.type} message:`, message[message.type as 'image' | 'document']?.id);
   try {
-    const { buffer, filename, mimeType } = await downloadAndPrepareMedia(message[message.type as 'image' | 'document']?.id as string, message.type === 'document' ? message.document?.filename : undefined);
+    const mediaInfo = message[message.type as 'image' | 'document'];
+    if (!mediaInfo) {
+      throw new Error(`Invalid ${message.type} message structure`);
+    }
+
+    let filename: string;
+    let mimeType: string;
+
+    if (message.type === 'document' && message.document) {
+      filename = message.document.filename;
+      mimeType = message.document.mime_type;
+    } else if (message.type === 'image' && message.image) {
+      const fileExtension = message.image.mime_type.split('/')[1];
+      filename = `image_${Date.now()}.${fileExtension}`;
+      mimeType = message.image.mime_type;
+    } else {
+      throw new Error(`Unsupported media type: ${message.type}`);
+    }
+
+    const { buffer } = await downloadAndPrepareMedia(mediaInfo.id, filename);
     
     // Create a File object from the buffer
     const file = new File([buffer], filename, { type: mimeType });
