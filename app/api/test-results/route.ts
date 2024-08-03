@@ -14,6 +14,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 export async function GET(request: NextRequest) {
   console.log('Received GET request for test results');
   
+  // Disable caching
+  const headers = new Headers({
+    'Cache-Control': 'no-store, max-age=0',
+    'Pragma': 'no-cache',
+  });
+
   try {
     const { data, error } = await supabase
       .from('test_results')
@@ -22,12 +28,12 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Supabase query error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500, headers });
     }
 
     if (!data || data.length === 0) {
       console.log('No test results found');
-      return NextResponse.json([]);
+      return NextResponse.json([], { headers });
     }
 
     console.log(`Fetched ${data.length} test results`);
@@ -66,9 +72,11 @@ export async function GET(request: NextRequest) {
     }, []);
 
     console.log(`Processed ${processedData.length} unique test components`);
-    return NextResponse.json(processedData);
+    return NextResponse.json(processedData, { headers });
   } catch (error) {
     console.error('Unexpected error in GET /api/test-results:', error);
-    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500, headers });
   }
 }
+
+export const dynamic = 'force-dynamic';
