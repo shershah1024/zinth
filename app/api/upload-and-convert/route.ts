@@ -13,13 +13,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function uploadToSupabase(file: File): Promise<string> {
   const { data, error } = await supabase.storage
-    .from('imaging-files')
+    .from('all_file')
     .upload(`${Date.now()}-${file.name}`, file);
 
   if (error) throw error;
 
   const { data: publicUrlData } = supabase.storage
-    .from('imaging-files')
+    .from('all_file')
     .getPublicUrl(data.path);
 
   return publicUrlData.publicUrl;
