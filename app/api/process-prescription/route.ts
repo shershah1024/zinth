@@ -34,14 +34,24 @@ interface PrescriptionAnalysisResult {
 async function analyzePrescription(publicUrl: string, base64Data: string | string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
   console.log(`[Prescription Analysis] Analyzing prescription. MIME type: ${mimeType}`);
   try {
+    // Ensure base64Data is always an array
+    const images = Array.isArray(base64Data) ? base64Data : [base64Data];
+    
+    console.log(`[Prescription Analysis] Number of images to analyze: ${images.length}`);
+    
     const analyzeResponse = await fetch(`${BASE_URL}/api/analyze-prescription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ publicUrl, base64Data, mimeType })
+      body: JSON.stringify({ 
+        publicUrl, 
+        images, // Send the array of images
+        mimeType 
+      })
     });
     
     if (!analyzeResponse.ok) {
       const errorText = await analyzeResponse.text();
+      console.error(`[Prescription Analysis] Failed with status ${analyzeResponse.status}. Error: ${errorText}`);
       throw new Error(`Analysis failed with status ${analyzeResponse.status}. Error: ${errorText}`);
     }
     
@@ -120,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
     
     const { publicUrl, base64Data, mimeType } = await uploadResponse.json();
-    console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}, MIME type: ${mimeType}`);
+    console.log(`[POST] File uploaded successfully. Public URL: ${publicUrl}, MIME type: ${mimeType}, Base64 data type: ${typeof base64Data}, Length: ${Array.isArray(base64Data) ? base64Data.length : base64Data.length}`);
 
     const analysisResults = await analyzePrescription(publicUrl, base64Data, mimeType);
 
