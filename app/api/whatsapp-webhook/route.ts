@@ -6,6 +6,10 @@ import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update th
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
 const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
+const IMAGING_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/imaging-analysis`;
+const HEALTH_REPORT_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-health-reports`;
+const PRESCRIPTION_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-prescription`;
+
 
 const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-type`;
 
@@ -180,13 +184,12 @@ async function convertPdfToImages(publicUrl: string): Promise<{ url: string; bas
   };
 }
 
-async function classifyDocument(base64Image: string, mimeType: string): Promise<string> {
+async function classifyDocument(base64Images: string[], mimeType: string): Promise<string> {
+  // We'll classify based on the first image, assuming all pages are of the same type
   const response = await fetch(DOCUMENT_CLASSIFICATION_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ image: base64Image, mimeType }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: base64Images[0], mimeType }),
   });
 
   if (!response.ok) {
@@ -195,6 +198,25 @@ async function classifyDocument(base64Image: string, mimeType: string): Promise<
 
   const result = await response.json();
   return result.type;
+}
+
+async function analyzeImages(base64Images: string[], mimeType: string, analysisUrl: string): Promise<string[]> {
+  const analysisPromises = base64Images.map(async (base64Image, index) => {
+    const response = await fetch(analysisUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64Image, mimeType }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Analysis for image ${index + 1} failed with status ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.analysis;
+  });
+
+  return Promise.all(analysisPromises);
 }
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
@@ -206,21 +228,18 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       throw new Error(`Invalid ${message.type} message structure`);
     }
 
-    // Use downloadAndUploadMedia function to handle the entire process
     const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
 
     let base64Images: string[] = [];
     let mimeType: string;
 
-    // Check if the file is a PDF
     if (path.toLowerCase().endsWith('.pdf')) {
       console.log('Processing PDF file');
       const conversionResult = await convertPdfToImages(publicUrl);
       base64Images = conversionResult.base64_images;
-      mimeType = 'image/png'; // Explicitly set to 'image/png' for converted PDFs
+      mimeType = 'image/png';
     } else {
       console.log('Processing non-PDF file');
-      // For non-PDF files, we need to download the file and convert it to base64
       const response = await fetch(publicUrl);
       const arrayBuffer = await response.arrayBuffer();
       const base64 = Buffer.from(arrayBuffer).toString('base64');
@@ -228,22 +247,41 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       mimeType = response.headers.get('content-type') || 'application/octet-stream';
     }
 
-    // Classify the document
-    const classificationType = await classifyDocument(base64Images[0], mimeType);
+    const classificationType = await classifyDocument(base64Images, mimeType);
+    console.log(`Document classified as: ${classificationType}`);
 
-    // Prepare the response message
+    let analysisResults: string[];
+    switch (classificationType) {
+      case 'imaging_result':
+        analysisResults = await analyzeImages(base64Images, mimeType, IMAGING_ANALYSIS_URL);
+        break;
+      case 'health_record':
+        analysisResults = await analyzeImages(base64Images, mimeType, HEALTH_REPORT_ANALYSIS_URL);
+        break;
+      case 'prescription':
+        analysisResults = await analyzeImages(base64Images, mimeType, PRESCRIPTION_ANALYSIS_URL);
+        break;
+      default:
+        throw new Error(`Unexpected document classification: ${classificationType}`);
+    }
+
+    const analysisResultsFormatted = analysisResults.map((result, index) => 
+      `Page ${index + 1}: ${result}`
+    ).join('\n');
+
     const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
 Path: ${path}
 Public URL: ${publicUrl}
 MIME Type: ${mimeType}
 Number of images: ${base64Images.length}
 Document Classification: ${classificationType}
-Base64 Images: ${base64Images.map((img, index) => `\nImage ${index + 1}: ${img.substring(0, 50)}...`).join('')}`;
+Analysis Results:
+${analysisResultsFormatted}`;
 
     return responseMessage;
   } catch (error) {
     console.error(`Error handling ${message.type} message from ${sender}:`, error);
-    return `Sorry, there was an error processing your ${message.type}.`;
+    return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 }
 
