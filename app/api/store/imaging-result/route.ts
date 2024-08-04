@@ -13,7 +13,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 export async function POST(request: NextRequest) {
   try {
-    const { result, publicUrl, patient_number } = await request.json();
+    const { result, publicUrl } = await request.json();
+    const patient_number= "919885842349";
 
     const { error } = await supabase.from('imaging_results').insert({
       patient_number,
