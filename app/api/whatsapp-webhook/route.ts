@@ -368,64 +368,97 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
                           `Summary: ${analysisResult}\n\n` +
                           `You can view the detailed results here: ${resultUrl}`;
 
-                          return finalResponse;
-                        } catch (error) {
-                          console.error(`Error handling ${message.type} message from ${sender}:`, error);
-                          return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-                        }
-                      }
-                      
-                      function removeDataUrlPrefix(base64String: string): string {
-                        const prefixRegex = /^data:image\/[a-z]+;base64,/;
-                        return base64String.replace(prefixRegex, '');
-                      }
-                      
-                      function isValidBase64(str: string) {
-                        if (str === '' || str.trim() === '') { return false; }
-                        try {
-                          return btoa(atob(str)) == str;
-                        } catch (err) {
-                          return false;
-                        }
-                      }
-                      
-                      async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: string[] }> {
-                        console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
-                      
-                        const response = await fetch(PDF_TO_IMAGE_API_URL, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                          },
-                          body: JSON.stringify({ url: publicUrl })
-                        });
-                      
-                        console.log(`[PDF Conversion] Response status: ${response.status}`);
-                      
-                        if (!response.ok) {
-                          const responseText = await response.text();
-                          console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
-                          throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
-                        }
-                      
-                        const data = await response.json();
-                        console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
-                      
-                        if (!data.base64_images || data.base64_images.length === 0) {
-                          console.error('[PDF Conversion] No images returned');
-                          throw new Error('PDF conversion returned no images');
-                        }
-                      
-                        console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
-                        return { base64_images: data.base64_images };
-                      }
-                      
-                      async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
-                        if (message.interactive?.type === 'button_reply') {
-                          console.log('Received button reply:', message.interactive.button_reply);
-                          return `You clicked: ${message.interactive.button_reply.title}`;
-                        }
-                        return 'Unsupported interactive message type';
-                      }
-                      
-//redeploy
+    // Send the final response
+    await sendMessage(sender, finalResponse);
+
+    // Send an OK response after the final message
+    await sendOkResponse();
+
+    return finalResponse;
+  } catch (error) {
+    console.error(`Error handling ${message.type} message from ${sender}:`, error);
+    const errorMessage = `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    
+    // Send the error message and wait for it to complete
+    await sendMessage(sender, errorMessage);
+    
+    // Send an OK response after the error message
+    await sendOkResponse();
+    
+    return errorMessage;
+  }
+}
+
+function removeDataUrlPrefix(base64String: string): string {
+  const prefixRegex = /^data:image\/[a-z]+;base64,/;
+  return base64String.replace(prefixRegex, '');
+}
+
+function isValidBase64(str: string) {
+  if (str === '' || str.trim() === '') { return false; }
+  try {
+    return btoa(atob(str)) == str;
+  } catch (err) {
+    return false;
+  }
+}
+
+async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: string[] }> {
+  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
+
+  const response = await fetch(PDF_TO_IMAGE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url: publicUrl })
+  });
+
+  console.log(`[PDF Conversion] Response status: ${response.status}`);
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
+    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
+  }
+
+  const data = await response.json();
+  console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
+
+  if (!data.base64_images || data.base64_images.length === 0) {
+    console.error('[PDF Conversion] No images returned');
+    throw new Error('PDF conversion returned no images');
+  }
+
+  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
+  return { base64_images: data.base64_images };
+}
+
+async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
+  if (message.interactive?.type === 'button_reply') {
+    console.log('Received button reply:', message.interactive.button_reply);
+    return `You clicked: ${message.interactive.button_reply.title}`;
+  }
+  return 'Unsupported interactive message type';
+}
+
+async function sendOkResponse() {
+  try {
+    const response = await fetch('https://graph.facebook.com/v12.0/me/messages', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'ok' }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    console.log('OK response sent successfully');
+  } catch (error) {
+    console.error('Error sending OK response:', error);
+  }
+}
