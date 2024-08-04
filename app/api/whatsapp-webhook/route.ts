@@ -188,22 +188,34 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string): P
 
 async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
+  const MAX_BATCH_SIZE = 3; // Adjust this value as needed
 
-  const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: base64Images, mimeType, publicUrl })
-  });
+  for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
+    const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
+    console.log(`[Health Report Analysis] Processing batch ${i / MAX_BATCH_SIZE + 1} with ${batch.length} images`);
 
-  if (!analyzeResponse.ok) {
-    const errorText = await analyzeResponse.text();
-    console.error(`[Health Report Analysis] Analysis failed - Status: ${analyzeResponse.status}, Error: ${errorText}`);
-    throw new Error(`Health report analysis failed with status ${analyzeResponse.status}: ${errorText}`);
+    const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: batch, mimeType, publicUrl })
+    });
+
+    if (!analyzeResponse.ok) {
+      const errorText = await analyzeResponse.text();
+      console.error(`[Health Report Analysis] Batch analysis failed - Status: ${analyzeResponse.status}, Error: ${errorText}`);
+      throw new Error(`Health report analysis failed with status ${analyzeResponse.status}: ${errorText}`);
+    }
+
+    const batchData = await analyzeResponse.json();
+    if (!batchData || typeof batchData !== 'object') {
+      console.error("[Health Report Analysis] Unexpected analysis results structure");
+      throw new Error("Analysis results do not have the expected structure");
+    }
+
+    console.log(`[Health Report Analysis] Batch ${i / MAX_BATCH_SIZE + 1} processed successfully`);
   }
 
-  await analyzeResponse.json();
-
-  console.log('[Health Report Analysis] Analysis completed. Returning link to view results.');
+  console.log('[Health Report Analysis] All batches processed. Returning link to view results.');
   return HEALTH_RECORDS_VIEW_URL;
 }
 

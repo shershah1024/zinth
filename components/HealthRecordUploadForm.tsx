@@ -73,7 +73,7 @@ export function HealthRecordUploadForm({ processFile }: HealthRecordUploadFormPr
 
     try {
       await processFile(uploadedFile);
-      router.push('/test-reports');
+      router.push('/health-records');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
