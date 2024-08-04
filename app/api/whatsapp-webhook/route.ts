@@ -251,29 +251,34 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       mimeType = response.headers.get('content-type') || 'application/octet-stream';
       const arrayBuffer = await response.arrayBuffer();
       const base64 = Buffer.from(arrayBuffer).toString('base64');
-      base64Images = [`data:${mimeType};base64,${base64}`];
+      base64Images = [base64];  // Store without data URL prefix
       console.log(`[File Processing] Converted file to base64. MIME type: ${mimeType}`);
     }
 
     console.log(`Processed media - mimeType: ${mimeType}, Number of images: ${base64Images.length}`);
     console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
 
-    const classificationType = await classifyDocument(base64Images[0], mimeType);
+    // For classification and analysis, we need to ensure the base64 string includes the data URL prefix
+    const base64WithPrefix = base64Images.map(img => 
+      img.startsWith('data:') ? img : `data:${mimeType};base64,${img}`
+    );
+
+    const classificationType = await classifyDocument(base64WithPrefix[0], mimeType);
     console.log(`Document classified as: ${classificationType}`);
 
     let analysisResults: string[];
     console.log(`Starting analysis for ${classificationType}`);
-    console.log(`Analysis input - base64Images length: ${base64Images.length}, mimeType: ${mimeType}`);
+    console.log(`Analysis input - base64Images length: ${base64WithPrefix.length}, mimeType: ${mimeType}`);
 
     switch (classificationType) {
       case 'imaging_result':
-        analysisResults = await analyzeImagingResult(base64Images, mimeType);
+        analysisResults = await analyzeImagingResult(base64WithPrefix, mimeType);
         break;
       case 'health_record':
-        analysisResults = await analyzeHealthReport(base64Images, mimeType, publicUrl);
+        analysisResults = await analyzeHealthReport(base64WithPrefix, mimeType, publicUrl);
         break;
       case 'prescription':
-        analysisResults = await analyzePrescription(base64Images, mimeType);
+        analysisResults = await analyzePrescription(base64WithPrefix, mimeType);
         break;
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
