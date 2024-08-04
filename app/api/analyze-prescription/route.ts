@@ -1,14 +1,15 @@
-//app/api/analyze-prescription/route.ts
-
-
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
+}
+
+if (!BASE_URL) {
+  throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');
 }
 
 interface MedicineTimes {
@@ -47,6 +48,50 @@ interface AnthropicResponse {
 interface RequestBody {
   images: string[];
   mimeType: string;
+  publicUrl?: string;
+}
+
+async function storePrescription(results: PrescriptionAnalysisResult[], publicUrl: string): Promise<void> {
+  console.log(`[Prescription Storage] Starting storage process`);
+  console.log(`[Prescription Storage] Public URL: ${publicUrl}`);
+  console.log(`[Prescription Storage] Input results:`, JSON.stringify(results, null, 2));
+  
+  const endpoint = '/api/store-prescription';
+
+  // Assuming we're only dealing with one prescription at a time
+  const result = results[0];
+
+  const prescriptionData = {
+    prescription: {
+      prescription_date: result.prescription_date,
+      doctor: result.doctor,
+      medicines: result.medicines.map(medicine => ({
+        medicine: medicine.medicine,
+        before_after_food: medicine.before_after_food,
+        start_date: medicine.start_date,
+        end_date: medicine.end_date,
+        notes: medicine.notes,
+        medicine_times: medicine.medicine_times
+      })),
+      public_url: publicUrl
+    }
+  };
+
+  console.log('[Prescription Storage] Data to be sent:', JSON.stringify(prescriptionData, null, 2));
+
+  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(prescriptionData)
+  });
+  
+  if (!storeResponse.ok) {
+    const errorText = await storeResponse.text();
+    console.error(`[Prescription Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
+    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
+  }
+
+  console.log(`[Prescription Storage] Successfully stored prescription`);
 }
 
 export async function POST(request: NextRequest) {
@@ -62,6 +107,11 @@ export async function POST(request: NextRequest) {
     if (!requestBody.mimeType) {
       console.error('Invalid input: mimeType is missing');
       return NextResponse.json({ error: 'mimeType is required' }, { status: 400 });
+    }
+
+    if (!requestBody.publicUrl) {
+      console.error('Invalid input: publicUrl is missing');
+      return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
     console.log(`Received request with ${requestBody.images.length} images`);
@@ -183,6 +233,10 @@ export async function POST(request: NextRequest) {
     }
 
     const analysisResults: PrescriptionAnalysisResult[] = toolUseContents.map((content: AnthropicResponseContent) => content.input as PrescriptionAnalysisResult);
+    
+    // Store the prescription
+    await storePrescription(analysisResults, requestBody.publicUrl);
+
     return NextResponse.json(analysisResults);
   } catch (error) {
     console.error('Error analyzing prescription:', error);

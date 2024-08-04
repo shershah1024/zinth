@@ -64,14 +64,14 @@ async function uploadAndConvert(file: File): Promise<{ publicUrl: string; base64
   };
 }
 
-async function analyzePrescription(base64Data: string[], mimeType: string): Promise<PrescriptionAnalysisResult[]> {
+async function analyzePrescription(base64Data: string[], mimeType: string, publicUrl: string): Promise<PrescriptionAnalysisResult[]> {
   console.log(`[Prescription Analysis] Starting analysis. MIME type: ${mimeType}`);
   console.log(`[Prescription Analysis] Number of images: ${base64Data.length}`);
   
   const analyzeResponse = await fetch(ANALYZE_PRESCRIPTION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: base64Data, mimeType })
+    body: JSON.stringify({ images: base64Data, mimeType, publicUrl })
   });
   
   if (!analyzeResponse.ok) {
@@ -83,49 +83,6 @@ async function analyzePrescription(base64Data: string[], mimeType: string): Prom
   const analysisResults: PrescriptionAnalysisResult[] = await analyzeResponse.json();
   console.log("[Prescription Analysis] Analysis results:", JSON.stringify(analysisResults, null, 2));
   return analysisResults;
-}
-
-async function storePrescription(results: PrescriptionAnalysisResult[], publicUrl: string): Promise<void> {
-  console.log(`[Prescription Storage] Starting storage process`);
-  console.log(`[Prescription Storage] Public URL: ${publicUrl}`);
-  console.log(`[Prescription Storage] Input results:`, JSON.stringify(results, null, 2));
-  
-  const endpoint = '/api/store-prescription';
-
-  // Assuming we're only dealing with one prescription at a time
-  const result = results[0];
-
-  const prescriptionData = {
-    prescription: {
-      prescription_date: result.prescription_date,
-      doctor: result.doctor,
-      medicines: result.medicines.map(medicine => ({
-        medicine: medicine.medicine,
-        before_after_food: medicine.before_after_food,
-        start_date: medicine.start_date,
-        end_date: medicine.end_date,
-        notes: medicine.notes,
-        medicine_times: medicine.medicine_times
-      })),
-      public_url: publicUrl
-    }
-  };
-
-  console.log('[Prescription Storage] Data to be sent:', JSON.stringify(prescriptionData, null, 2));
-
-  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(prescriptionData)
-  });
-  
-  if (!storeResponse.ok) {
-    const errorText = await storeResponse.text();
-    console.error(`[Prescription Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
-    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
-  }
-
-  console.log(`[Prescription Storage] Successfully stored prescription`);
 }
 
 export async function POST(request: NextRequest) {
@@ -149,11 +106,8 @@ export async function POST(request: NextRequest) {
     const { publicUrl, base64Data, mimeType } = await uploadAndConvert(file);
     console.log(`[POST] File uploaded and converted. Public URL: ${publicUrl}`);
 
-    // Step 2: Analyze Prescription
-    const analysisResults = await analyzePrescription(base64Data, mimeType);
-
-    // Step 3: Store Prescription
-    await storePrescription(analysisResults, publicUrl);
+    // Step 2: Analyze Prescription (which now includes storage)
+    const analysisResults = await analyzePrescription(base64Data, mimeType, publicUrl);
 
     console.log('[POST] All processing completed successfully');
     const response = { results: analysisResults, publicUrl };
