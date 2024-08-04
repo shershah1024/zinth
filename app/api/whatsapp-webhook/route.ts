@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
-import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
+import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils';
 import { Buffer } from 'buffer';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
@@ -187,7 +187,7 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string): P
   return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
 }
 
-async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
+async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<void> {
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
 
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
@@ -206,11 +206,11 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
       throw new Error(`Health report batch analysis failed with status ${analyzeResponse.status}: ${errorText}`);
     }
 
+    // We don't need to do anything with the response, as the data is being stored on the server
     await analyzeResponse.json();
   }
 
-  console.log('[Health Report Analysis] Analysis completed. Returning link to view results.');
-  return HEALTH_RECORDS_VIEW_URL;
+  console.log('[Health Report Analysis] Analysis completed successfully.');
 }
 
 async function analyzePrescription(base64Images: string[], mimeType: string): Promise<string[]> {
@@ -288,7 +288,8 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         analysisResult = imagingResults.join('\n');
         break;
       case 'health_record':
-        analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
+        await analyzeHealthReport(base64Images, mimeType, publicUrl);
+        analysisResult = `Your health report has been successfully processed. You can view the results at: ${HEALTH_RECORDS_VIEW_URL}`;
         break;
       case 'prescription':
         const prescriptionResults = await analyzePrescription(base64Images, mimeType);
@@ -302,7 +303,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
 Document Classification: ${classificationType}
-Analysis Result: ${analysisResult}`;
+${analysisResult}`;
 
     return responseMessage;
   } catch (error) {
