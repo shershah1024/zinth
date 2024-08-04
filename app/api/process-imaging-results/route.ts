@@ -1,10 +1,9 @@
-//app/api/process-imaging-results/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
+const MAX_BATCH_SIZE = 3; // Maximum number of images to process in a single batch
 
 if (!BASE_URL) {
   throw new Error('NEXT_PUBLIC_BASE_URL is not set in the environment variables');
@@ -17,13 +16,13 @@ interface ImagingResult {
   doctor_name: string;
 }
 
-async function analyzeImagingResult(images: string[], mimeType: string, doctorName: string): Promise<ImagingResult[]> {
+async function analyzeImagingResult(images: string[], mimeType: string, doctorName: string, publicUrl: string, patientNumber: string): Promise<ImagingResult[]> {
   console.log(`[Imaging Analysis] Analyzing ${images.length} images`);
   try {
     const analyzeResponse = await fetch(`${BASE_URL}/api/imaging-analysis`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images, mimeType, doctorName })
+      body: JSON.stringify({ images, mimeType, doctorName, publicUrl, patientNumber })
     });
     
     if (!analyzeResponse.ok) {
@@ -38,38 +37,6 @@ async function analyzeImagingResult(images: string[], mimeType: string, doctorNa
     console.error('[Imaging Analysis] Error:', error);
     throw error;
   }
-}
-
-async function storeImagingResult(result: ImagingResult, publicUrl: string, patientNumber: string): Promise<void> {
-  console.log(`[Imaging Storage] Storing imaging result`);
-  const endpoint = '/api/store/imaging-result';
-
-  const imagingData = {
-    result: {
-      date: result.test_date,
-      test: result.test_title,
-      comments: result.observations,
-      doctor: result.doctor_name
-    },
-    publicUrl,
-    patient_number: patientNumber
-  };
-
-  console.log('[Imaging Storage] Data to be sent:', JSON.stringify(imagingData, null, 2));
-
-  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(imagingData)
-  });
-  
-  if (!storeResponse.ok) {
-    const errorText = await storeResponse.text();
-    console.error(`[Imaging Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
-    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
-  }
-
-  console.log(`[Imaging Storage] Successfully stored imaging result`);
 }
 
 export async function POST(request: NextRequest) {
@@ -88,7 +55,7 @@ export async function POST(request: NextRequest) {
     console.log(`[POST] File received: ${file.name}, type: ${file.type}`);
     console.log(`[POST] Processing for Patient: ${patientNumber}, Doctor: ${doctorName}`);
 
-    // Use the new upload-and-convert route
+    // Use the upload-and-convert route
     const uploadConvertResponse = await fetch(`${BASE_URL}/api/upload-and-convert`, {
       method: 'POST',
       body: formData
@@ -105,13 +72,16 @@ export async function POST(request: NextRequest) {
     const base64Images = Array.isArray(base64Data) ? base64Data : [base64Data];
     console.log(`[POST] File processed into ${base64Images.length} images`);
 
-    const analysisResults = await analyzeImagingResult(base64Images, mimeType, doctorName);
-
-    // Store results
-    await storeImagingResult(analysisResults[0], publicUrl, patientNumber);
+    // Process images in batches
+    const allAnalysisResults: ImagingResult[] = [];
+    for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
+      const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
+      const batchResults = await analyzeImagingResult(batch, mimeType, doctorName, publicUrl, patientNumber);
+      allAnalysisResults.push(...batchResults);
+    }
 
     console.log('[POST] All processing completed successfully');
-    return NextResponse.json({ results: analysisResults, publicUrl, patientNumber });
+    return NextResponse.json({ results: allAnalysisResults, publicUrl, patientNumber });
   } catch (error) {
     console.error('Error processing imaging result:', error);
     return NextResponse.json({ 

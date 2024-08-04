@@ -1,26 +1,33 @@
-//app/api/imaging analysis/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+const MAX_BATCH_SIZE = 3;
 
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
 }
 
+if (!BASE_URL) {
+  console.warn('BASE_URL is not set in the environment variables. Using default: http://localhost:3000');
+}
+
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
 interface ImagingResult {
+  date: string;
   test_title: string;
-  test_date: string;
   observations: string;
-  doctor_name?: string;
+  doctor_name: string;
 }
 
 interface AnthropicResponseContent {
   type: string;
   id?: string;
   name?: string;
-  input?: ImagingResult;
+  input?: ImagingResult | ImagingResult[];
 }
 
 interface AnthropicResponse {
@@ -30,7 +37,104 @@ interface AnthropicResponse {
 interface RequestBody {
   images: string[];
   mimeType: string;
+  publicUrl: string;
   doctorName: string;
+}
+
+async function analyzeImagingBatch(images: string[], mimeType: string, doctorName: string): Promise<ImagingResult[]> {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-Key': ANTHROPIC_API_KEY as string,
+    'anthropic-version': '2023-06-01'
+  };
+
+  const tools = [{
+    name: "imaging_analysis",
+    description: "Analyze medical imaging results and extract key components.",
+    input_schema: {
+      type: "object",
+      properties: {
+        date: { type: "string", description: "Date of the imaging test, in YYYY-MM-DD format. If not visible, use 'NOT_VISIBLE'." },
+        test_title: { type: "string", description: "A short title for the imaging test" },
+        observations: { type: "string", description: "Key observations or findings from the imaging" },
+        doctor_name: { type: "string", description: "Name of the doctor" }
+      },
+      required: ["date", "test_title", "observations", "doctor_name"]
+    }
+  }];
+
+  const imageContent = images.map(base64Image => ({
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: mimeType,
+      data: base64Image
+    }
+  }));
+
+  const body = {
+    model: "claude-3-5-sonnet-20240620",
+    max_tokens: 4000,
+    tools: tools,
+    tool_choice: { type: "tool", name: "imaging_analysis" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          ...imageContent,
+          {
+            type: "text",
+            text: `Analyze these ${images.length} medical imaging results. For each image, extract the following information: the date of the test, a short title for the test, and key observations or findings. If the date is not visible in an image, use 'NOT_VISIBLE' for the date field. Provide separate analysis for each image. Use the doctor name provided: ${doctorName}.`
+          }
+        ]
+      }
+    ]
+  };
+
+  const anthropicResponse = await fetch(ANTHROPIC_API_URL, {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(body)
+  });
+
+  if (!anthropicResponse.ok) {
+    throw new Error(`Anthropic API error: ${anthropicResponse.status} ${anthropicResponse.statusText}`);
+  }
+
+  const responseData: AnthropicResponse = await anthropicResponse.json();
+  const toolUseContent = responseData.content.find((item: AnthropicResponseContent) => item.type === 'tool_use');
+  
+  if (!toolUseContent || !toolUseContent.input) {
+    throw new Error('No analysis results found in the API response');
+  }
+
+  console.log('API Response:', JSON.stringify(toolUseContent, null, 2));
+
+  // Handle the case where a single result is returned
+  if (!Array.isArray(toolUseContent.input)) {
+    return [toolUseContent.input as ImagingResult];
+  }
+
+  return toolUseContent.input as ImagingResult[];
+}
+
+async function storeResults(results: ImagingResult[], publicUrl: string): Promise<void> {
+  console.log(`[Result Storage] Storing results for URL: ${publicUrl}`);
+  const endpoint = '/api/store/imaging-results';
+
+  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ results, publicUrl })
+  });
+  
+  if (!storeResponse.ok) {
+    const errorText = await storeResponse.text();
+    console.error(`[Result Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
+    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
+  }
+
+  console.log(`[Result Storage] Successfully stored results`);
 }
 
 export async function POST(request: NextRequest) {
@@ -48,115 +152,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'mimeType is required' }, { status: 400 });
     }
 
-    console.log(`Received request with ${requestBody.images.length} images`);
-
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'X-API-Key': ANTHROPIC_API_KEY as string,
-      'anthropic-version': '2023-06-01'
-    };
-
-    const tools = [{
-      name: "imaging_analysis",
-      description: "Analyze imaging test results and extract key components.",
-      input_schema: {
-        type: "object",
-        properties: {
-          test_title: { type: "string", description: "A short title for the imaging test" },
-          test_date: { type: "string", description: "Date of the imaging test, in YYYY-MM-DD format. If not visible, use 'NOT_VISIBLE'." },
-          observations: { type: "string", description: "Any notes/observations that the doctor has added. If none, you can add it as no observations" },
-          doctor_name: { type: "string", description: "Name of the doctor" }
-        },
-        required: ["test_title", "test_date", "observations", "doctor_name"]
-      }
-    }];
-
-    const imageContent = requestBody.images.map((base64Image: string) => ({
-      type: "image",
-      source: {
-        type: "base64",
-        media_type: requestBody.mimeType,
-        data: base64Image
-      }
-    }));
-
-    const body = {
-      model: "claude-3-5-sonnet-20240620",
-      max_tokens: 4000,
-      tools: tools,
-      temperature: 0.1,
-      tool_choice: { type: "tool", name: "imaging_analysis" },
-      messages: [
-        {
-          role: "user",
-          content: [
-            ...imageContent,
-            {
-              type: "text",
-              text: "Analyze this imaging test result and extract the following information: a short title for the test, the date of the test, and key observations or findings. If the date is not visible in the image, use 'NOT_VISIBLE' for the test_date field. Provide separate analysis for each image if multiple images are present. Use the doctor name provided in the request."
-            }
-          ]
-        }
-      ]
-    };
-
-    console.log('Sending request to Anthropic API...');
-    const anthropicResponse = await fetch(ANTHROPIC_API_URL, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(body)
-    });
-
-    console.log('Anthropic API Response Status:', anthropicResponse.status);
-    console.log('Anthropic API Response Headers:', JSON.stringify(anthropicResponse.headers, null, 2));
-
-    const responseText = await anthropicResponse.text();
-    console.log('Anthropic API Response Body:', responseText);
-
-    if (!anthropicResponse.ok) {
-      console.error(`Anthropic API error: ${anthropicResponse.status} ${anthropicResponse.statusText}`);
-      console.error('Response body:', responseText);
-      return NextResponse.json({ 
-        error: 'Error from Anthropic API', 
-        status: anthropicResponse.status,
-        details: responseText 
-      }, { status: anthropicResponse.status });
+    if (!requestBody.publicUrl) {
+      console.error('Invalid input: publicUrl is missing');
+      return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
-    let responseData: AnthropicResponse;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Error parsing JSON response:', parseError);
-      return NextResponse.json({ 
-        error: 'Invalid JSON response from Anthropic API',
-        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
-      }, { status: 500 });
+    if (!requestBody.doctorName) {
+      console.error('Invalid input: doctorName is missing');
+      return NextResponse.json({ error: 'doctorName is required' }, { status: 400 });
     }
 
-    const toolUseContents = responseData.content.filter((item: AnthropicResponseContent) => item.type === 'tool_use');
-    if (toolUseContents.length === 0) {
-      console.error('No tool use content found in the response');
-      return NextResponse.json({ 
-        error: 'No analysis results found in the API response',
-        details: 'The API response did not contain any tool use content'
-      }, { status: 500 });
+    console.log(`Processing ${requestBody.images.length} images in batches of up to ${MAX_BATCH_SIZE}...`);
+
+    const analysisResults: ImagingResult[] = [];
+    for (let i = 0; i < requestBody.images.length; i += MAX_BATCH_SIZE) {
+      const batch = requestBody.images.slice(i, i + MAX_BATCH_SIZE);
+      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType, requestBody.doctorName);
+      analysisResults.push(...batchResults);
     }
 
-    const analysisResults: ImagingResult[] = toolUseContents.map((content: AnthropicResponseContent) => {
-      const result = content.input as ImagingResult;
-      if (result.test_date === 'NOT_VISIBLE') {
-        result.test_date = new Date().toISOString().split('T')[0]; // Use today's date in YYYY-MM-DD format
-      }
-      result.doctor_name = requestBody.doctorName; // Use the doctor name from the request
-      return result;
-    });
+    console.log('Analysis Results:', JSON.stringify(analysisResults, null, 2));
 
-    return NextResponse.json(analysisResults);
+    // Store the results
+    await storeResults(analysisResults, requestBody.publicUrl);
+
+    return NextResponse.json({ message: 'Medical imaging analyzed and stored successfully', results: analysisResults });
   } catch (error) {
-    console.error('Error analyzing imaging test results:', error);
+    console.error('Error processing medical imaging:', error);
     return NextResponse.json({ 
-      error: 'Error analyzing imaging test results', 
+      error: 'Error processing medical imaging', 
       details: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
