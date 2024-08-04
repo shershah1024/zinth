@@ -52,3 +52,23 @@ export async function POST(request: NextRequest) {
     }
   }
 }
+
+export async function GET(request: NextRequest) {
+  console.log('Received GET request');
+  return NextResponse.json({ message: 'GET method not supported for this route' }, { status: 405 });
+}
+
+export async function PUT(request: NextRequest) {
+  console.log('Received PUT request');
+  return NextResponse.json({ message: 'PUT method not supported for this route' }, { status: 405 });
+}
+
+export async function DELETE(request: NextRequest) {
+  console.log('Received DELETE request');
+  return NextResponse.json({ message: 'DELETE method not supported for this route' }, { status: 405 });
+}
+
+export async function PATCH(request: NextRequest) {
+  console.log('Received PATCH request');
+  return NextResponse.json({ message: 'PATCH method not supported for this route' }, { status: 405 });
+}
