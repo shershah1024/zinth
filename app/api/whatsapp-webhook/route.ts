@@ -152,10 +152,13 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 }
 
 async function classifyDocument(base64Images: string[], mimeType: string): Promise<string> {
+  // Take up to the first two images for classification
+  const imagesToClassify = base64Images.slice(0, 2);
+
   const response = await fetch(DOCUMENT_CLASSIFICATION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: base64Images, mimeType }),
+    body: JSON.stringify({ images: imagesToClassify, mimeType }),
   });
 
   if (!response.ok) {
@@ -282,7 +285,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
 
     const classificationType = await classifyDocument(base64Images, mimeType);
-    console.log(`Document classified as: ${classificationType}`);
+console.log(`Document classified as: ${classificationType}. Used ${base64Images.slice(0, 2).length} page(s) for classification.`);
 
     let analysisResult: string;
     console.log(`Starting analysis for ${classificationType}`);
@@ -296,10 +299,10 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         case 'health_record':
           analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
           break;
-          case 'prescription':
-            const prescriptionUrl = await analyzePrescription(base64Images, mimeType, publicUrl);
-            analysisResult = prescriptionUrl;
-            break;
+      case 'prescription':
+  const prescriptionUrl = await analyzePrescription(base64Images, mimeType, publicUrl);
+  analysisResult = prescriptionUrl;
+  break;
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
     }
