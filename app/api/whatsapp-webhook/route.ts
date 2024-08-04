@@ -188,7 +188,7 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string): P
 
 async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
-  const MAX_BATCH_SIZE = 10; // Adjust this value as needed
+  const MAX_BATCH_SIZE = 3; // Adjust this value as needed
 
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
     const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
