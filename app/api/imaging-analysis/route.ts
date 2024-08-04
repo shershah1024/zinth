@@ -134,17 +134,14 @@ async function analyzeImagingBatch(images: string[], mimeType: string, public_ur
 }
 
 async function storeResults(results: ImagingResult[], publicUrl: string): Promise<void> {
-  const endpoint = '/api/store/imaging-results';
-  const fullUrl = new URL(endpoint, BASE_URL).toString();
-
-  console.log('Storing results at:', fullUrl);
-
-  const storeResponse = await fetch(fullUrl, {
+  
+  const storeResponse = await fetch(`${BASE_URL}/api/store/imaging-results`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ results, publicUrl })
   });
-  
+
+
   if (!storeResponse.ok) {
     const errorText = await storeResponse.text();
     console.error(`[Result Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
