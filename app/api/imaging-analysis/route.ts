@@ -134,11 +134,12 @@ async function analyzeImagingBatch(images: string[], mimeType: string, public_ur
 }
 
 async function storeResults(results: ImagingResult[], publicUrl: string): Promise<void> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
-  const endpoint = `${baseUrl}/api/store/imaging-results`;
+  const endpoint = '/api/store/imaging-results';
+  const fullUrl = new URL(endpoint, BASE_URL).toString();
 
+  console.log('Storing results at:', fullUrl);
 
-  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
+  const storeResponse = await fetch(fullUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ results, publicUrl })
@@ -173,13 +174,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
-
     console.log(`Processing ${requestBody.images.length} images in batches of up to ${MAX_BATCH_SIZE}...`);
 
     const analysisResults: ImagingResult[] = [];
     for (let i = 0; i < requestBody.images.length; i += MAX_BATCH_SIZE) {
       const batch = requestBody.images.slice(i, i + MAX_BATCH_SIZE);
-      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType,requestBody.publicUrl);
+      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType, requestBody.publicUrl);
       analysisResults.push(...batchResults);
     }
 
