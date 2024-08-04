@@ -1,5 +1,3 @@
-// app/api/webhook/route.ts
-
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia } from '@/utils/whatsappMediaUtils';
@@ -86,8 +84,6 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const okResponse = NextResponse.json({ status: "OK" });
-
   try {
     const data: WhatsAppWebhookData = await req.json();
     console.log('Received webhook data:', JSON.stringify(data, null, 2));
@@ -95,34 +91,33 @@ export async function POST(req: Request) {
     const entry = data.entry[0];
     if (!entry) {
       console.log('No entry in webhook data');
-      return okResponse;
+      return NextResponse.json({ status: "OK" });
     }
 
     const change = entry.changes[0];
     if (!change) {
       console.log('No change in webhook data');
-      return okResponse;
+      return NextResponse.json({ status: "OK" });
     }
 
     const value = change.value;
 
     if (!value.contacts || value.contacts.length === 0) {
       console.log('Ignoring webhook data without contacts field');
-      return okResponse;
+      return NextResponse.json({ status: "OK" });
     }
 
     if (!value.messages || value.messages.length === 0) {
       console.log('Ignoring webhook data without messages');
-      return okResponse;
+      return NextResponse.json({ status: "OK" });
     }
 
     const message = value.messages[0];
     const sender = value.contacts[0].wa_id;
 
-    // Check if the message is older than 3 minutes
     if (isMessageOld(message.timestamp)) {
       console.log('Ignoring message older than 3 minutes');
-      return okResponse;
+      return NextResponse.json({ status: "OK" });
     }
 
     let response: string;
@@ -142,21 +137,20 @@ export async function POST(req: Request) {
         response = "Unsupported message type";
     }
 
-    // Send the response back to the user asynchronously
-    sendMessage(sender, response).catch(error => {
-      console.error('Error sending message:', error);
-    });
+    // Send the response back to the user
+    await sendMessage(sender, response);
 
-    return okResponse;
+    // Return OK response after sending the message
+    return NextResponse.json({ status: "OK" });
   } catch (error) {
     console.error('Error processing webhook:', error);
-    return okResponse;
+    // Even if there's an error, we should return an OK response to prevent retries
+    return NextResponse.json({ status: "OK" });
   }
 }
 
-// Helper function to check if a message is older than 3 minutes
 function isMessageOld(timestamp: string): boolean {
-  const messageTime = new Date(parseInt(timestamp) * 1000); // Convert Unix timestamp to Date
+  const messageTime = new Date(parseInt(timestamp) * 1000);
   const currentTime = new Date();
   const timeDifference = currentTime.getTime() - messageTime.getTime();
   const threeMinutesInMs = 3 * 60 * 1000;
@@ -189,6 +183,8 @@ async function classifyDocument(base64Image: string, mimeType: string): Promise<
 async function analyzeImagingResult(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`[Imaging Analysis] Analyzing ${base64Images.length} images`);
 
+  let analysisResults: string[] = [];
+
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
     const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
 
@@ -205,20 +201,24 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string, pu
         throw new Error(`Batch analysis failed with status ${analyzeResponse.status}: ${errorText}`);
       }
 
-      await analyzeResponse.json(); // We're not using the response data, but we wait for it to ensure the request is complete
+      const result = await analyzeResponse.json();
+      analysisResults.push(result.analysis);
     } catch (error) {
       console.error(`[Imaging Analysis] Error processing batch:`, error);
       throw error;
     }
   }
 
-  // All batches processed successfully
   console.log(`[Imaging Analysis] Completed. Analyzed ${base64Images.length} images.`);
-  return IMAGING_RESULTS_VIEW_URL;
+  
+  const summary = analysisResults.join("\n\n");
+  return `Imaging Analysis Results:\n\n${summary}\n\nYou can view detailed results here: ${IMAGING_RESULTS_VIEW_URL}`;
 }
 
 async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
+
+  let analysisResults: string[] = [];
 
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
     const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
@@ -234,16 +234,18 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
         throw new Error(`Batch analysis failed with status ${analyzeResponse.status}`);
       }
 
-      await analyzeResponse.json(); // We're not using the response data, but we wait for it to ensure the request is complete
+      const result = await analyzeResponse.json();
+      analysisResults.push(result.analysis);
     } catch (error) {
       console.error(`[Health Report Analysis] Error processing batch:`, error);
       throw error;
     }
   }
 
-  // All batches processed successfully
   console.log(`[Health Report Analysis] Completed. Analyzed ${base64Images.length} images.`);
-  return HEALTH_RECORDS_VIEW_URL;
+  
+  const summary = analysisResults.join("\n\n");
+  return `Health Report Analysis Results:\n\n${summary}\n\nYou can view detailed results here: ${HEALTH_RECORDS_VIEW_URL}`;
 }
 
 async function analyzePrescription(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
@@ -261,10 +263,10 @@ async function analyzePrescription(base64Images: string[], mimeType: string, pub
     throw new Error(`Prescription analysis failed with status ${response.status}: ${errorText}`);
   }
 
-  await response.json(); // We're not using the result, but we still need to consume the response
-
+  const result = await response.json();
   console.log(`Prescription analysis completed`);
-  return PRESCRIPTION_VIEW_URL;
+  
+  return `Prescription Analysis Results:\n\n${result.analysis}\n\nYou can view detailed results here: ${PRESCRIPTION_VIEW_URL}`;
 }
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
@@ -335,25 +337,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     console.log(`Analysis completed. Result: ${analysisResult}`);
 
-    let resultUrl: string;
-    switch (classificationType) {
-      case 'imaging_result':
-        resultUrl = IMAGING_RESULTS_VIEW_URL;
-        break;
-      case 'health_record':
-        resultUrl = HEALTH_RECORDS_VIEW_URL;
-        break;
-      case 'prescription':
-        resultUrl = PRESCRIPTION_VIEW_URL;
-        break;
-      default:
-        resultUrl = 'https://zinth.vercel.app'; // Default URL
-    }
-
-    const responseMessage = `We've finished processing your ${classificationType}.
-You can view your results here: ${resultUrl}`;
-
-    return responseMessage;
+    return analysisResult;
   } catch (error) {
     console.error(`Error handling ${message.type} message from ${sender}:`, error);
     return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
