@@ -151,11 +151,11 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
   return "Received an empty text message";
 }
 
-async function classifyDocument(base64Image: string, mimeType: string): Promise<string> {
+async function classifyDocument(base64Images: string[], mimeType: string): Promise<string> {
   const response = await fetch(DOCUMENT_CLASSIFICATION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: base64Image, mimeType }),
+    body: JSON.stringify({ image: base64Images, mimeType }),
   });
 
   if (!response.ok) {
@@ -281,7 +281,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     console.log(`Processed media - mimeType: ${mimeType}, Number of images: ${base64Images.length}`);
     console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
 
-    const classificationType = await classifyDocument(base64Images[0], mimeType);
+    const classificationType = await classifyDocument(base64Images, mimeType);
     console.log(`Document classified as: ${classificationType}`);
 
     let analysisResult: string;
