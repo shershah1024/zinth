@@ -16,6 +16,7 @@ const MAX_BATCH_SIZE = 3;
 const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-type`;
 const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
 const IMAGING_RESULTS_VIEW_URL = 'https://zinth.vercel.app/imaging-results';
+const PRESCRIPTION_VIEW_URL = 'https://zinth.vercel.app/prescriptions';
 
 interface AnalysisResult {
   pageNumber: number;
@@ -245,7 +246,7 @@ async function analyzePrescription(base64Images: string[], mimeType: string, pub
   await response.json(); // We're not using the result, but we still need to consume the response
 
   console.log(`Prescription analysis completed`);
-  return 'https://zinth.vercel.app/prescriptions';
+  return PRESCRIPTION_VIEW_URL;
 }
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
@@ -325,13 +326,14 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         resultUrl = HEALTH_RECORDS_VIEW_URL;
         break;
       case 'prescription':
-        resultUrl = 'https://zinth.vercel.app/prescriptions';
+        resultUrl = PRESCRIPTION_VIEW_URL;
         break;
       default:
         resultUrl = 'https://zinth.vercel.app'; // Default URL
     }
 
     const responseMessage = `We've finished processing your ${message.type}.
+Document Classification: ${classificationType}
 You can view your results here: ${resultUrl}`;
 
     return responseMessage;
@@ -340,7 +342,6 @@ You can view your results here: ${resultUrl}`;
     return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 }
-
 
 function removeDataUrlPrefix(base64String: string): string {
   const prefixRegex = /^data:image\/[a-z]+;base64,/;
