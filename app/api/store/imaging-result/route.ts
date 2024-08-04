@@ -15,20 +15,26 @@ export async function POST(request: NextRequest) {
   console.log('Received POST request');
   try {
     const { result, publicUrl } = await request.json();
-    console.log('Parsed request body:', { result, publicUrl });
+    console.log('Parsed request body:', JSON.stringify({ result, publicUrl }, null, 2));
 
+    if (!Array.isArray(result) || result.length === 0) {
+      console.error('Invalid result data structure');
+      return NextResponse.json({ error: 'Invalid result data structure' }, { status: 400 });
+    }
+
+    const analysisResult = result[0];  // Assuming we're dealing with the first result
     const patient_number = "919885842349";
     console.log('Patient number:', patient_number);
 
     const dataToInsert = {
       patient_number,
-      date: result.date,
-      test: result.test_title,
-      comments: result.observations,
-      doctor: result.doctor_name,
+      date: analysisResult.date,
+      test: analysisResult.test_title,
+      comments: analysisResult.observations,
+      doctor: analysisResult.doctor_name,
       public_url: publicUrl,
     };
-    console.log('Data to be inserted:', dataToInsert);
+    console.log('Data to be inserted:', JSON.stringify(dataToInsert, null, 2));
 
     const { data, error } = await supabase.from('imaging_results').insert(dataToInsert).select();
 
@@ -37,38 +43,25 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    console.log('Insert successful. Inserted data:', data);
+    console.log('Insert successful. Inserted data:', JSON.stringify(data, null, 2));
 
     return NextResponse.json({ message: 'Imaging result stored successfully', data });
   } catch (error: unknown) {
     console.error('Error storing imaging result:', error);
     
-    if (typeof error === 'object' && error !== null && 'message' in error) {
-      return NextResponse.json({ error: 'Database error', details: (error as { message: string }).message }, { status: 500 });
-    } else if (error instanceof Error) {
-      return NextResponse.json({ error: 'Unexpected error', details: error.message }, { status: 500 });
-    } else {
-      return NextResponse.json({ error: 'An unknown error occurred' }, { status: 500 });
+    if (typeof error === 'object' && error !== null) {
+      if ('code' in error && (error as any).code === '23505') {
+        return NextResponse.json({ error: 'Duplicate entry', details: 'This imaging result already exists in the database.' }, { status: 409 });
+      } else if ('message' in error) {
+        return NextResponse.json({ error: 'Database error', details: (error as { message: string }).message }, { status: 500 });
+      }
     }
+    
+    if (error instanceof Error) {
+      return NextResponse.json({ error: 'Unexpected error', details: error.message }, { status: 500 });
+    }
+    
+    return NextResponse.json({ error: 'An unknown error occurred' }, { status: 500 });
   }
 }
 
-export async function GET(request: NextRequest) {
-  console.log('Received GET request');
-  return NextResponse.json({ message: 'GET method not supported for this route' }, { status: 405 });
-}
-
-export async function PUT(request: NextRequest) {
-  console.log('Received PUT request');
-  return NextResponse.json({ message: 'PUT method not supported for this route' }, { status: 405 });
-}
-
-export async function DELETE(request: NextRequest) {
-  console.log('Received DELETE request');
-  return NextResponse.json({ message: 'DELETE method not supported for this route' }, { status: 405 });
-}
-
-export async function PATCH(request: NextRequest) {
-  console.log('Received PATCH request');
-  return NextResponse.json({ message: 'PATCH method not supported for this route' }, { status: 405 });
-}
