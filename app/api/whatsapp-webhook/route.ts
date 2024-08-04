@@ -69,6 +69,11 @@ interface WhatsAppWebhookData {
 // Add a simple in-memory cache for message deduplication
 const processedMessages = new Set<string>();
 
+// Add this function to create a delay
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get('hub.mode');
@@ -213,8 +218,7 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string, pu
 
   console.log(`[Imaging Analysis] Completed. Analyzed ${base64Images.length} images.`);
   
-  const summary = analysisResults.join("\n\n");
-  return `Imaging Analysis Results:\n\n${summary}\n\nYou can view detailed results here: ${IMAGING_RESULTS_VIEW_URL}`;
+  return analysisResults.join("\n\n");
 }
 
 async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
@@ -246,8 +250,7 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
 
   console.log(`[Health Report Analysis] Completed. Analyzed ${base64Images.length} images.`);
   
-  const summary = analysisResults.join("\n\n");
-  return `Health Report Analysis Results:\n\n${summary}\n\nYou can view detailed results here: ${HEALTH_RECORDS_VIEW_URL}`;
+  return analysisResults.join("\n\n");
 }
 
 async function analyzePrescription(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
@@ -268,7 +271,7 @@ async function analyzePrescription(base64Images: string[], mimeType: string, pub
   const result = await response.json();
   console.log(`Prescription analysis completed`);
   
-  return `Prescription Analysis Results:\n\n${result.analysis}\n\nYou can view detailed results here: ${PRESCRIPTION_VIEW_URL}`;
+  return result.analysis;
 }
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
@@ -339,62 +342,87 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     console.log(`Analysis completed. Result: ${analysisResult}`);
 
-    return analysisResult;
-  } catch (error) {
-    console.error(`Error handling ${message.type} message from ${sender}:`, error);
-    return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-  }
-}
+    // Add a 60-second delay
+    console.log("Waiting for 60 seconds before sending the final response...");
+    await delay(60000);
 
-function removeDataUrlPrefix(base64String: string): string {
-  const prefixRegex = /^data:image\/[a-z]+;base64,/;
-  return base64String.replace(prefixRegex, '');
-}
+    let resultUrl: string;
+    switch (classificationType) {
+      case 'imaging_result':
+        resultUrl = IMAGING_RESULTS_VIEW_URL;
+        break;
+      case 'health_record':
+        resultUrl = HEALTH_RECORDS_VIEW_URL;
+        break;
+      case 'prescription':
+        resultUrl = PRESCRIPTION_VIEW_URL;
+        break;
+      default:
+        resultUrl = 'https://zinth.vercel.app'; // Default URL
+    }
 
-function isValidBase64(str: string) {
-  if (str === '' || str.trim() === '') { return false; }
-  try {
-    return btoa(atob(str)) == str;
-  } catch (err) {
-    return false;
-  }
-}
+    // Construct a single, consolidated response
+    const finalResponse = `Analysis complete for your ${classificationType}.\n\n` +
+                          `Summary: ${analysisResult}\n\n` +
+                          `You can view the detailed results here: ${resultUrl}`;
 
-async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: string[] }> {
-  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
-
-  const response = await fetch(PDF_TO_IMAGE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ url: publicUrl })
-  });
-
-  console.log(`[PDF Conversion] Response status: ${response.status}`);
-
-  if (!response.ok) {
-    const responseText = await response.text();
-    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
-    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
-  }
-
-  const data = await response.json();
-  console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
-
-  if (!data.base64_images || data.base64_images.length === 0) {
-    console.error('[PDF Conversion] No images returned');
-    throw new Error('PDF conversion returned no images');
-  }
-
-  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
-  return { base64_images: data.base64_images };
-}
-
-async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
-  if (message.interactive?.type === 'button_reply') {
-    console.log('Received button reply:', message.interactive.button_reply);
-    return `You clicked: ${message.interactive.button_reply.title}`;
-  }
-  return 'Unsupported interactive message type';
-}
+                          return finalResponse;
+                        } catch (error) {
+                          console.error(`Error handling ${message.type} message from ${sender}:`, error);
+                          return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+                        }
+                      }
+                      
+                      function removeDataUrlPrefix(base64String: string): string {
+                        const prefixRegex = /^data:image\/[a-z]+;base64,/;
+                        return base64String.replace(prefixRegex, '');
+                      }
+                      
+                      function isValidBase64(str: string) {
+                        if (str === '' || str.trim() === '') { return false; }
+                        try {
+                          return btoa(atob(str)) == str;
+                        } catch (err) {
+                          return false;
+                        }
+                      }
+                      
+                      async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: string[] }> {
+                        console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
+                      
+                        const response = await fetch(PDF_TO_IMAGE_API_URL, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({ url: publicUrl })
+                        });
+                      
+                        console.log(`[PDF Conversion] Response status: ${response.status}`);
+                      
+                        if (!response.ok) {
+                          const responseText = await response.text();
+                          console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
+                          throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
+                        }
+                      
+                        const data = await response.json();
+                        console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
+                      
+                        if (!data.base64_images || data.base64_images.length === 0) {
+                          console.error('[PDF Conversion] No images returned');
+                          throw new Error('PDF conversion returned no images');
+                        }
+                      
+                        console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
+                        return { base64_images: data.base64_images };
+                      }
+                      
+                      async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
+                        if (message.interactive?.type === 'button_reply') {
+                          console.log('Received button reply:', message.interactive.button_reply);
+                          return `You clicked: ${message.interactive.button_reply.title}`;
+                        }
+                        return 'Unsupported interactive message type';
+                      }
+                      
