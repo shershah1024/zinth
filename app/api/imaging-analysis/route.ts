@@ -134,8 +134,9 @@ async function analyzeImagingBatch(images: string[], mimeType: string, public_ur
 }
 
 async function storeResults(results: ImagingResult[], publicUrl: string): Promise<void> {
-  console.log(`[Result Storage] Storing results for URL: ${publicUrl}`);
-  const endpoint = '/api/store/imaging-results';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+  const endpoint = `${baseUrl}/api/store/imaging-results`;
+
 
   const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
