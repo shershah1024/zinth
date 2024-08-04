@@ -200,25 +200,28 @@ async function classifyDocument(base64Image: string, mimeType: string): Promise<
 }
 
 async function analyzeImagingResult(base64Images: string[], mimeType: string): Promise<string[]> {
-  const analysisPromises = base64Images.map(async (base64Image, index) => {
-    const response = await fetch(IMAGING_ANALYSIS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64Image, mimeType }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Imaging analysis for image ${index + 1} failed with status ${response.status}`);
-    }
-
-    const result = await response.json();
-    return result.analysis;
+  console.log(`Analyzing imaging result - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
+  
+  const response = await fetch(IMAGING_ANALYSIS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ images: base64Images, mimeType }),
   });
 
-  return Promise.all(analysisPromises);
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`Imaging analysis failed - Status: ${response.status}, Error: ${errorText}`);
+    throw new Error(`Imaging analysis failed with status ${response.status}: ${errorText}`);
+  }
+
+  const result = await response.json();
+  console.log(`Imaging analysis completed - Result:`, result);
+  return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
 }
 
 async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string[]> {
+  console.log(`Analyzing health report - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
+  
   const response = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -226,30 +229,34 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
   });
 
   if (!response.ok) {
-    throw new Error(`Health report analysis failed with status ${response.status}`);
+    const errorText = await response.text();
+    console.error(`Health report analysis failed - Status: ${response.status}, Error: ${errorText}`);
+    throw new Error(`Health report analysis failed with status ${response.status}: ${errorText}`);
   }
 
   const result = await response.json();
-  return result.analysis;
+  console.log(`Health report analysis completed - Result:`, result);
+  return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
 }
 
 async function analyzePrescription(base64Images: string[], mimeType: string): Promise<string[]> {
-  const analysisPromises = base64Images.map(async (base64Image, index) => {
-    const response = await fetch(PRESCRIPTION_ANALYSIS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64Image, mimeType }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Prescription analysis for image ${index + 1} failed with status ${response.status}`);
-    }
-
-    const result = await response.json();
-    return result.analysis;
+  console.log(`Analyzing prescription - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
+  
+  const response = await fetch(PRESCRIPTION_ANALYSIS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ images: base64Images, mimeType }),
   });
 
-  return Promise.all(analysisPromises);
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`Prescription analysis failed - Status: ${response.status}, Error: ${errorText}`);
+    throw new Error(`Prescription analysis failed with status ${response.status}: ${errorText}`);
+  }
+
+  const result = await response.json();
+  console.log(`Prescription analysis completed - Result:`, result);
+  return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
 }
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
