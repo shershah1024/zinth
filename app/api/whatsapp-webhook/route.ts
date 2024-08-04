@@ -189,24 +189,19 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string): P
 async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
 
-  for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
-    const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
-    console.log(`[Health Report Analysis] Processing batch ${Math.floor(i / MAX_BATCH_SIZE) + 1} with ${batch.length} images`);
+  const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ images: base64Images, mimeType, publicUrl })
+  });
 
-    const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images: batch, mimeType, publicUrl })
-    });
-
-    if (!analyzeResponse.ok) {
-      const errorText = await analyzeResponse.text();
-      console.error(`[Health Report Analysis] Batch analysis failed - Status: ${analyzeResponse.status}, Error: ${errorText}`);
-      throw new Error(`Health report batch analysis failed with status ${analyzeResponse.status}: ${errorText}`);
-    }
-
-    await analyzeResponse.json();
+  if (!analyzeResponse.ok) {
+    const errorText = await analyzeResponse.text();
+    console.error(`[Health Report Analysis] Analysis failed - Status: ${analyzeResponse.status}, Error: ${errorText}`);
+    throw new Error(`Health report analysis failed with status ${analyzeResponse.status}: ${errorText}`);
   }
+
+  await analyzeResponse.json();
 
   console.log('[Health Report Analysis] Analysis completed. Returning link to view results.');
   return HEALTH_RECORDS_VIEW_URL;
