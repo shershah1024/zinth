@@ -3,7 +3,7 @@ import MedicalTestsDashboard from '@/components/MedicalTestsDashboard'
 import { ProcessedTest } from '@/types/medicalTests'
 
 async function getMedicalTests(): Promise<ProcessedTest[]> {
-  const apiUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/test-results`
+  const apiUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-health-records`
   console.log('Fetching medical tests from:', apiUrl)
 
   try {

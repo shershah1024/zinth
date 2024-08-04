@@ -66,7 +66,7 @@ const Dashboard: React.FC = () => {
       color: 'bg-purple-500'
     },
     {
-      href: '/test-reports',
+      href: '/health-records',
       icon: Clipboard,
       title: 'View Health Records',
       description: 'Access your complete health history timeline.',

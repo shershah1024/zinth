@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
-import sharp from 'sharp';
+
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
@@ -11,11 +11,17 @@ const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
 const IMAGING_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/imaging-analysis`;
 const HEALTH_REPORT_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-health-reports`;
 const PRESCRIPTION_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-prescription`;
+const MAX_BATCH_SIZE = 3;
 
 
 const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-type`;
 
 const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
+
+interface AnalysisResult {
+  pageNumber: number;
+  analysis: string;
+}
 
 
 // Types
@@ -185,24 +191,35 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string): P
 }
 
 async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string[]> {
-  console.log(`Analyzing health report - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
-  
-  const response = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: base64Images, mimeType, publicUrl }),
-  });
+  console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
+  const allResults: AnalysisResult[] = [];
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Health report analysis failed - Status: ${response.status}, Error: ${errorText}`);
-    throw new Error(`Health report analysis failed with status ${response.status}: ${errorText}`);
+  for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
+    const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
+    console.log(`[Health Report Analysis] Processing batch ${i / MAX_BATCH_SIZE + 1} with ${batch.length} images`);
+
+    const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: batch, mimeType, publicUrl })
+    });
+
+    if (!analyzeResponse.ok) {
+      const errorText = await analyzeResponse.text();
+      console.error(`[Health Report Analysis] Batch analysis failed - Status: ${analyzeResponse.status}, Error: ${errorText}`);
+      throw new Error(`Health report batch analysis failed with status ${analyzeResponse.status}: ${errorText}`);
+    }
+
+    const batchResults: AnalysisResult[] = await analyzeResponse.json();
+    allResults.push(...batchResults);
   }
 
-  const result = await response.json();
-  console.log(`Health report analysis completed - Result:`, result);
-  return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
+  // Sort results by page number and extract only the analysis strings
+  return allResults
+    .sort((a, b) => a.pageNumber - b.pageNumber)
+    .map(result => result.analysis);
 }
+
 
 async function analyzePrescription(base64Images: string[], mimeType: string): Promise<string[]> {
   console.log(`Analyzing prescription - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
