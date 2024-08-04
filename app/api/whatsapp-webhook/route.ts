@@ -91,25 +91,25 @@ export async function POST(req: Request) {
     const entry = data.entry[0];
     if (!entry) {
       console.log('No entry in webhook data');
-      return NextResponse.json({ status: "Ignored" });
+      return NextResponse.json({ status: "OK" });
     }
 
     const change = entry.changes[0];
     if (!change) {
       console.log('No change in webhook data');
-      return NextResponse.json({ status: "Ignored" });
+      return NextResponse.json({ status: "OK" });
     }
 
     const value = change.value;
 
     if (!value.contacts || value.contacts.length === 0) {
       console.log('Ignoring webhook data without contacts field');
-      return NextResponse.json({ status: "Ignored" });
+      return NextResponse.json({ status: "OK" });
     }
 
     if (!value.messages || value.messages.length === 0) {
       console.log('Ignoring webhook data without messages');
-      return NextResponse.json({ status: "Ignored" });
+      return NextResponse.json({ status: "OK" });
     }
 
     const message = value.messages[0];
@@ -132,12 +132,15 @@ export async function POST(req: Request) {
         response = "Unsupported message type";
     }
 
+    // Send the response back to the user
     await sendMessage(sender, response);
 
+    // Return OK response to WhatsApp
     return NextResponse.json({ status: "OK" });
   } catch (error) {
     console.error('Error processing webhook:', error);
-    return NextResponse.json({ error: 'Error processing webhook' }, { status: 400 });
+    // Even in case of an error, return OK to prevent WhatsApp from resending the message
+    return NextResponse.json({ status: "OK" });
   }
 }
 
