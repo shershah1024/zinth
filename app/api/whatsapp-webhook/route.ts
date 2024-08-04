@@ -216,13 +216,15 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
   return HEALTH_RECORDS_VIEW_URL;
 }
 
-async function analyzePrescription(base64Images: string[], mimeType: string): Promise<string[]> {
+async function analyzePrescription(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`Analyzing prescription - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
   
+  
+
   const response = await fetch(PRESCRIPTION_ANALYSIS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: base64Images, mimeType }),
+    body: JSON.stringify({ images: base64Images, mimeType, publicUrl }),
   });
 
   if (!response.ok) {
@@ -231,9 +233,10 @@ async function analyzePrescription(base64Images: string[], mimeType: string): Pr
     throw new Error(`Prescription analysis failed with status ${response.status}: ${errorText}`);
   }
 
-  const result = await response.json();
-  console.log(`Prescription analysis completed - Result:`, result);
-  return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
+  await response.json(); // We're not using the result, but we still need to consume the response
+
+  console.log(`Prescription analysis completed`);
+  return 'https://zinth.vercel.app/prescriptions';
 }
 
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
@@ -293,10 +296,10 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         case 'health_record':
           analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
           break;
-      case 'prescription':
-        const prescriptionResults = await analyzePrescription(base64Images, mimeType);
-        analysisResult = prescriptionResults.join('\n');
-        break;
+          case 'prescription':
+            const prescriptionUrl = await analyzePrescription(base64Images, mimeType, publicUrl);
+            analysisResult = prescriptionUrl;
+            break;
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
     }
