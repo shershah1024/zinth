@@ -66,6 +66,9 @@ interface WhatsAppWebhookData {
   }>;
 }
 
+// Add a simple in-memory cache for message deduplication
+const processedMessages = new Set<string>();
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get('hub.mode');
@@ -88,32 +91,32 @@ export async function POST(req: Request) {
     const data: WhatsAppWebhookData = await req.json();
     console.log('Received webhook data:', JSON.stringify(data, null, 2));
 
-    const entry = data.entry[0];
-    if (!entry) {
-      console.log('No entry in webhook data');
+    const message = data.entry[0]?.changes[0]?.value?.messages?.[0];
+    if (!message) {
+      console.log('No valid message in webhook data');
       return NextResponse.json({ status: "OK" });
     }
 
-    const change = entry.changes[0];
-    if (!change) {
-      console.log('No change in webhook data');
+    const sender = data.entry[0]?.changes[0]?.value?.contacts?.[0]?.wa_id;
+    if (!sender) {
+      console.log('No valid sender in webhook data');
       return NextResponse.json({ status: "OK" });
     }
 
-    const value = change.value;
-
-    if (!value.contacts || value.contacts.length === 0) {
-      console.log('Ignoring webhook data without contacts field');
+    // Check if we've already processed this message
+    if (processedMessages.has(message.id)) {
+      console.log(`Already processed message ${message.id}. Skipping.`);
       return NextResponse.json({ status: "OK" });
     }
 
-    if (!value.messages || value.messages.length === 0) {
-      console.log('Ignoring webhook data without messages');
-      return NextResponse.json({ status: "OK" });
-    }
+    // Mark this message as processed
+    processedMessages.add(message.id);
 
-    const message = value.messages[0];
-    const sender = value.contacts[0].wa_id;
+    // Clean up old messages from the set (e.g., keep only last 1000 messages)
+    if (processedMessages.size > 1000) {
+      const oldestMessages = Array.from(processedMessages).slice(0, 100);
+      oldestMessages.forEach(id => processedMessages.delete(id));
+    }
 
     if (isMessageOld(message.timestamp)) {
       console.log('Ignoring message older than 3 minutes');
@@ -144,7 +147,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "OK" });
   } catch (error) {
     console.error('Error processing webhook:', error);
-    // Even if there's an error, we should return an OK response to prevent retries
     return NextResponse.json({ status: "OK" });
   }
 }
