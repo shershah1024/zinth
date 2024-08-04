@@ -262,7 +262,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     }
 
     const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
-    console.log("path is ",path)
+    console.log("Downloaded media - path:", path, "publicUrl:", publicUrl);
 
     let base64Images: string[] = [];
     let mimeType: string;
@@ -275,17 +275,20 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     } else {
       console.log('Processing non-PDF file');
       const response = await fetch(publicUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString('base64');
-      base64Images = [base64];
       mimeType = response.headers.get('content-type') || 'application/octet-stream';
-      console.log("mime type is", mimeType)
+      const fileData = await response.text();
+      base64Images = [fileData];
     }
+    console.log("Processed media - mimeType:", mimeType, "Number of images:", base64Images.length);
+    console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
 
     const classificationType = await classifyDocument(base64Images[0], mimeType);
     console.log(`Document classified as: ${classificationType}`);
 
     let analysisResults: string[];
+    console.log(`Starting analysis for ${classificationType}`);
+    console.log(`Analysis input - base64Images length: ${base64Images.length}, mimeType: ${mimeType}`);
+
     switch (classificationType) {
       case 'imaging_result':
         analysisResults = await analyzeImagingResult(base64Images, mimeType);
@@ -299,6 +302,9 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
     }
+
+    console.log(`Analysis completed. Number of results: ${analysisResults.length}`);
+    console.log(`First analysis result: ${analysisResults[0]?.substring(0, 100)}`);
 
     const analysisResultsFormatted = analysisResults.map((result, index) => 
       `Page ${index + 1}: ${result}`
