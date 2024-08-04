@@ -16,12 +16,13 @@ export async function POST(request: NextRequest) {
     const { result, publicUrl } = await request.json();
     const patient_number= "919885842349";
 
+
     const { error } = await supabase.from('imaging_results').insert({
       patient_number,
       date: result.date,
-      test: result.test,
+      test: result.test_title,
       comments: result.observations,
-      doctor: result.doctor,
+      doctor: result.doctor_name,
       public_url: publicUrl,
     });
 

@@ -40,6 +40,10 @@ interface RequestBody {
   publicUrl: string;
 }
 
+function getCurrentDate(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
 async function analyzeImagingBatch(images: string[], mimeType: string, doctorName: string): Promise<ImagingResult[]> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -109,12 +113,23 @@ async function analyzeImagingBatch(images: string[], mimeType: string, doctorNam
 
   console.log('API Response:', JSON.stringify(toolUseContent, null, 2));
 
+  let results: ImagingResult[];
+
   // Handle the case where a single result is returned
   if (!Array.isArray(toolUseContent.input)) {
-    return [toolUseContent.input as ImagingResult];
+    results = [toolUseContent.input as ImagingResult];
+  } else {
+    results = toolUseContent.input as ImagingResult[];
   }
 
-  return toolUseContent.input as ImagingResult[];
+  // Replace 'NOT_VISIBLE' dates with the current date
+  const currentDate = getCurrentDate();
+  results = results.map(result => ({
+    ...result,
+    date: result.date === 'NOT_VISIBLE' ? currentDate : result.date
+  }));
+
+  return results;
 }
 
 async function storeResults(results: ImagingResult[], publicUrl: string): Promise<void> {
@@ -156,13 +171,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
-
     console.log(`Processing ${requestBody.images.length} images in batches of up to ${MAX_BATCH_SIZE}...`);
 
     const analysisResults: ImagingResult[] = [];
     for (let i = 0; i < requestBody.images.length; i += MAX_BATCH_SIZE) {
       const batch = requestBody.images.slice(i, i + MAX_BATCH_SIZE);
-      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType,requestBody.publicUrl);
+      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType, requestBody.publicUrl);
       analysisResults.push(...batchResults);
     }
 
