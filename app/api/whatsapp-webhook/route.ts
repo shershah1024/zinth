@@ -15,6 +15,7 @@ const HEALTH_RECORDS_VIEW_URL = 'https://zinth.vercel.app/health-records';
 const MAX_BATCH_SIZE = 3;
 const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-type`;
 const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
+const IMAGING_RESULTS_VIEW_URL = 'https://zinth.vercel.app/imaging-results';
 
 interface AnalysisResult {
   pageNumber: number;
@@ -166,29 +167,39 @@ async function classifyDocument(base64Image: string, mimeType: string): Promise<
   return result.type;
 }
 
-async function analyzeImagingResult(base64Images: string[], mimeType: string): Promise<string[]> {
-  console.log(`Analyzing imaging result - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
-  
-  const response = await fetch(IMAGING_ANALYSIS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: base64Images, mimeType }),
-  });
+async function analyzeImagingResult(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
+  console.log(`[Imaging Analysis] Analyzing ${base64Images.length} images`);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Imaging analysis failed - Status: ${response.status}, Error: ${errorText}`);
-    throw new Error(`Imaging analysis failed with status ${response.status}: ${errorText}`);
+  for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
+    const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
+
+    try {
+      const analyzeResponse = await fetch(IMAGING_ANALYSIS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: batch, mimeType, publicUrl })
+      });
+
+      if (!analyzeResponse.ok) {
+        const errorText = await analyzeResponse.text();
+        console.error(`Batch analysis failed - Status: ${analyzeResponse.status}, Error: ${errorText}`);
+        throw new Error(`Batch analysis failed with status ${analyzeResponse.status}: ${errorText}`);
+      }
+
+      await analyzeResponse.json(); // We're not using the response data, but we wait for it to ensure the request is complete
+    } catch (error) {
+      console.error(`[Imaging Analysis] Error processing batch:`, error);
+      throw error;
+    }
   }
 
-  const result = await response.json();
-  console.log(`Imaging analysis completed - Result:`, result);
-  return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
+  // All batches processed successfully
+  console.log(`[Imaging Analysis] Completed. Analyzed ${base64Images.length} images.`);
+  return IMAGING_RESULTS_VIEW_URL;
 }
 
 async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
-  const MAX_BATCH_SIZE = 3; // Adjust this value as needed
 
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
     const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
@@ -219,8 +230,6 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
 async function analyzePrescription(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`Analyzing prescription - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
   
-  
-
   const response = await fetch(PRESCRIPTION_ANALYSIS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -290,22 +299,19 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     switch (classificationType) {
       case 'imaging_result':
-        const imagingResults = await analyzeImagingResult(base64Images, mimeType);
-        analysisResult = imagingResults.join('\n');
+        analysisResult = await analyzeImagingResult(base64Images, mimeType, publicUrl);
         break;
-        case 'health_record':
-          analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
-          break;
+      case 'health_record':
+        analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
+        break;
       case 'prescription':
-        case 'prescription':
-            const prescriptionUrl = await analyzePrescription(base64Images, mimeType, publicUrl);
-            analysisResult = prescriptionUrl;
-          break;
+        analysisResult = await analyzePrescription(base64Images, mimeType, publicUrl);
+        break;
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
     }
 
-    console.log(`Analysis completed. Result: ${analysisResult.substring(0, 100)}...`);
+    console.log(`Analysis completed. Result: ${analysisResult}`);
 
     const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
 Document Classification: ${classificationType}
