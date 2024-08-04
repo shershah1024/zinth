@@ -3,6 +3,8 @@
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
+import sharp from 'sharp';
+
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
 const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
@@ -147,43 +149,6 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
   return "Received an empty text message";
 }
 
-
-
-async function convertPdfToImages(publicUrl: string): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
-  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
-
-  const response = await fetch(PDF_TO_IMAGE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ url: publicUrl })
-  });
-
-  console.log(`[PDF Conversion] Response status: ${response.status}`);
-
-  if (!response.ok) {
-    const responseText = await response.text();
-    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
-    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
-  }
-
-  const data = await response.json();
-  console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
-
-  if (!data.base64_images || data.base64_images.length === 0) {
-    console.error('[PDF Conversion] No images returned');
-    throw new Error('PDF conversion returned no images');
-  }
-
-  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
-  return {
-    url: publicUrl,
-    base64_images: data.base64_images,
-    mimeType: 'image/png'  // PDF conversion always results in PNG images
-  };
-}
-
 async function classifyDocument(base64Image: string, mimeType: string): Promise<string> {
   const response = await fetch(DOCUMENT_CLASSIFICATION_URL, {
     method: 'POST',
@@ -271,22 +236,26 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
     console.log("Downloaded media - path:", path, "publicUrl:", publicUrl);
 
-    let base64Images: string[] = [];
+    let base64Images: string[];
     let mimeType: string;
 
     if (path.toLowerCase().endsWith('.pdf')) {
-      console.log('Processing PDF file');
+      console.log('[PDF Processing] Starting conversion for PDF file');
       const conversionResult = await convertPdfToImages(publicUrl);
       base64Images = conversionResult.base64_images;
-      mimeType = 'image/png';
+      mimeType = 'image/png';  // PDF conversion always results in PNG images
+      console.log(`[PDF Processing] Converted PDF into ${base64Images.length} images. MIME type: ${mimeType}`);
     } else {
-      console.log('Processing non-PDF file');
+      console.log('[File Processing] Processing non-PDF file');
       const response = await fetch(publicUrl);
       mimeType = response.headers.get('content-type') || 'application/octet-stream';
-      const fileData = await response.text();
-      base64Images = [fileData];
+      const arrayBuffer = await response.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      base64Images = [`data:${mimeType};base64,${base64}`];
+      console.log(`[File Processing] Converted file to base64. MIME type: ${mimeType}`);
     }
-    console.log("Processed media - mimeType:", mimeType, "Number of images:", base64Images.length);
+
+    console.log(`Processed media - mimeType: ${mimeType}, Number of images: ${base64Images.length}`);
     console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
 
     const classificationType = await classifyDocument(base64Images[0], mimeType);
@@ -331,6 +300,37 @@ ${analysisResultsFormatted}`;
     console.error(`Error handling ${message.type} message from ${sender}:`, error);
     return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
+}
+
+async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: string[] }> {
+  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
+
+  const response = await fetch(PDF_TO_IMAGE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url: publicUrl })
+  });
+
+  console.log(`[PDF Conversion] Response status: ${response.status}`);
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
+    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
+  }
+
+  const data = await response.json();
+  console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
+
+  if (!data.base64_images || data.base64_images.length === 0) {
+    console.error('[PDF Conversion] No images returned');
+    throw new Error('PDF conversion returned no images');
+  }
+
+  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
+  return { base64_images: data.base64_images };
 }
 
 

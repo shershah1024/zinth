@@ -1,6 +1,5 @@
 //app/api/find-document-type/route.ts
 
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -11,15 +10,6 @@ if (!ANTHROPIC_API_KEY) {
 }
 
 type DocumentType = 'imaging_result' | 'health_record' | 'prescription';
-
-interface AnthropicResponseContent {
-  type: string;
-  text?: string;
-}
-
-interface AnthropicResponse {
-  content: AnthropicResponseContent[];
-}
 
 interface RequestBody {
   image: string;
@@ -53,10 +43,28 @@ export async function POST(request: NextRequest) {
       'anthropic-version': '2023-06-01'
     };
 
+    const tools = [{
+      name: "classify_medical_document",
+      description: "Classify a medical document as either an imaging result, health record, or prescription.",
+      input_schema: {
+        type: "object",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["imaging_result", "health_record", "prescription"],
+            description: "The classification of the medical document"
+          }
+        },
+        required: ["type"]
+      }
+    }];
+
     const body = {
       model: "claude-3-5-sonnet-20240620",
       max_tokens: 1000,
       temperature: 0.1,
+      tools: tools,
+      tool_choice: { type: "tool", name: "classify_medical_document" },
       messages: [
         {
           role: "user",
@@ -71,7 +79,7 @@ export async function POST(request: NextRequest) {
             },
             {
               type: "text",
-              text: "Analyze this medical document and classify it as one of the following: 1. Imaging result, 2. Health record, 3. Prescription. Provide only the classification, nothing else."
+              text: "Analyze this medical document and classify it as one of the following: imaging result, health record, or prescription. Use the classify_medical_document tool to provide the classification."
             }
           ]
         }
@@ -98,10 +106,10 @@ export async function POST(request: NextRequest) {
       }, { status: anthropicResponse.status });
     }
 
-    const responseData: AnthropicResponse = await anthropicResponse.json();
+    const responseData = await anthropicResponse.json();
+    const toolUseContent = responseData.content.find((item: any) => item.type === 'tool_use');
 
-    const classificationText = responseData.content[0]?.text?.trim().toLowerCase();
-    if (!classificationText) {
+    if (!toolUseContent || !toolUseContent.input || !toolUseContent.input.type) {
       console.error('No classification found in the response');
       return NextResponse.json({ 
         error: 'No classification found in the API response',
@@ -109,20 +117,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    let type: DocumentType;
-    if (classificationText.includes('imaging result')) {
-      type = 'imaging_result';
-    } else if (classificationText.includes('health record')) {
-      type = 'health_record';
-    } else if (classificationText.includes('prescription')) {
-      type = 'prescription';
-    } else {
-      console.error('Unexpected classification:', classificationText);
-      return NextResponse.json({ 
-        error: 'Unexpected classification from API response',
-        details: classificationText
-      }, { status: 500 });
-    }
+    const type = toolUseContent.input.type as DocumentType;
 
     const result: ClassificationResult = {
       type,
