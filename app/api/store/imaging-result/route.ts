@@ -36,7 +36,10 @@ export async function POST(request: NextRequest) {
     };
     console.log('Data to be inserted:', JSON.stringify(dataToInsert, null, 2));
 
-    const { data, error } = await supabase.from('imaging_results').insert(dataToInsert).select();
+    const { data, error } = await supabase
+      .from('imaging_results')
+      .insert([dataToInsert])
+      .select();
 
     if (error) {
       console.error('Supabase insert error:', error);
@@ -64,4 +67,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'An unknown error occurred' }, { status: 500 });
   }
 }
-
