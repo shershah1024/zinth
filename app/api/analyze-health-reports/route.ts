@@ -8,6 +8,7 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const MAX_BATCH_SIZE = 3;
 
+
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
 }

@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Generate public URL
     const { data: publicUrlData } = supabase.storage
-      .from('pdfs')
+      .from('all_file')
       .getPublicUrl(data.path);
 
     if (!publicUrlData) {
