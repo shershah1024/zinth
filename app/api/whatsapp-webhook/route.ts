@@ -151,14 +151,11 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
   return "Received an empty text message";
 }
 
-async function classifyDocument(base64Images: string[], mimeType: string): Promise<string> {
-  // Take up to the first two images for classification
-  const imagesToClassify = base64Images.slice(0, 2);
-
+async function classifyDocument(base64Image: string, mimeType: string): Promise<string> {
   const response = await fetch(DOCUMENT_CLASSIFICATION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ images: imagesToClassify, mimeType }),
+    body: JSON.stringify({ image: base64Image, mimeType }),
   });
 
   if (!response.ok) {
@@ -284,8 +281,8 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     console.log(`Processed media - mimeType: ${mimeType}, Number of images: ${base64Images.length}`);
     console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
 
-    const classificationType = await classifyDocument(base64Images, mimeType);
-console.log(`Document classified as: ${classificationType}. Used ${base64Images.slice(0, 2).length} page(s) for classification.`);
+    const classificationType = await classifyDocument(base64Images[0], mimeType);
+    console.log(`Document classified as: ${classificationType}`);
 
     let analysisResult: string;
     console.log(`Starting analysis for ${classificationType}`);
@@ -300,9 +297,10 @@ console.log(`Document classified as: ${classificationType}. Used ${base64Images.
           analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
           break;
       case 'prescription':
-  const prescriptionUrl = await analyzePrescription(base64Images, mimeType, publicUrl);
-  analysisResult = prescriptionUrl;
-  break;
+        case 'prescription':
+            const prescriptionUrl = await analyzePrescription(base64Images, mimeType, publicUrl);
+            analysisResult = prescriptionUrl;
+          break;
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
     }

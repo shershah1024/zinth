@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     const tools = [{
       name: "classify_medical_document",
-      description: "Classify a medical document as either an imaging result, health record, or prescription.",
+      description: "Classify a medical document as either an imaging result, health record(medical tests including blood and urine tests), or a prescription.",
       input_schema: {
         type: "object",
         properties: {
