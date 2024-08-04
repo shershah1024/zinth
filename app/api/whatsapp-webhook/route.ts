@@ -347,8 +347,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         resultUrl = 'https://zinth.vercel.app'; // Default URL
     }
 
-    const responseMessage = `We've finished processing your ${message.type}.
-Document Classification: ${classificationType}
+    const responseMessage = `We've finished processing your ${classificationType}.
 You can view your results here: ${resultUrl}`;
 
     return responseMessage;
