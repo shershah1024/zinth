@@ -117,6 +117,9 @@ export async function POST(req: Request) {
     // Process the message asynchronously
     handleMessage(message, sender).catch(error => {
       console.error('Error handling message:', error);
+      sendMessage(sender, "Sorry, an error occurred while processing your message. Please try again later.").catch(sendError => {
+        console.error('Error sending error message:', sendError);
+      });
     });
 
     return okResponse;
@@ -149,7 +152,7 @@ async function handleMessage(message: WhatsAppMessage, sender: string) {
     await sendMessage(sender, response);
   } catch (error) {
     console.error('Error handling message:', error);
-    await sendMessage(sender, "Sorry, an error occurred while processing your message.");
+    await sendMessage(sender, "Sorry, an error occurred while processing your message. Please try again later.");
   }
 }
 
@@ -200,14 +203,23 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
   const MAX_BATCH_SIZE = 3; // Adjust this value as needed
 
+  const batches = [];
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
-    const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
+    batches.push(base64Images.slice(i, i + MAX_BATCH_SIZE));
+  }
 
+  for (let i = 0; i < batches.length; i++) {
     try {
       const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images: batch, mimeType, publicUrl })
+        body: JSON.stringify({ 
+          images: batches[i], 
+          mimeType, 
+          publicUrl,
+          batchNumber: i + 1,
+          totalBatches: batches.length
+        })
       });
 
       if (!analyzeResponse.ok) {
@@ -215,14 +227,15 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
       }
 
       await analyzeResponse.json(); // We're not using the response data, but we wait for it to ensure the request is complete
+      console.log(`[Health Report Analysis] Completed batch ${i + 1} of ${batches.length}`);
     } catch (error) {
-      console.error(`[Health Report Analysis] Error processing batch:`, error);
+      console.error(`[Health Report Analysis] Error processing batch ${i + 1}:`, error);
       throw error;
     }
   }
 
   // Analysis completed successfully
-  console.log(`[Health Report Analysis] Completed. Analyzed ${base64Images.length} images.`);
+  console.log(`[Health Report Analysis] Completed. Analyzed ${base64Images.length} images in ${batches.length} batches.`);
   return `Your health report has been analyzed. View your health records here: ${HEALTH_RECORDS_VIEW_URL}`;
 }
 
@@ -255,8 +268,14 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       throw new Error(`Invalid ${message.type} message structure`);
     }
 
-    const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
-    console.log("Downloaded media - path:", path, "publicUrl:", publicUrl);
+    let path, publicUrl;
+    try {
+      ({ path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id));
+      console.log("Downloaded media - path:", path, "publicUrl:", publicUrl);
+    } catch (downloadError) {
+      console.error('Error downloading media:', downloadError);
+      throw new Error(`Unable to download the ${message.type}. Please try sending it again.`);
+    }
 
     let base64Images: string[];
     let mimeType: string;
@@ -368,7 +387,6 @@ async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: s
   return { base64_images: data.base64_images };
 }
 
-
 async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   if (message.interactive?.type === 'button_reply') {
     console.log('Received button reply:', message.interactive.button_reply);
@@ -376,3 +394,4 @@ async function handleInteractiveMessage(message: WhatsAppMessage, sender: string
   }
   return 'Unsupported interactive message type';
 }
+
