@@ -242,7 +242,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     if (path.toLowerCase().endsWith('.pdf')) {
       console.log('[PDF Processing] Starting conversion for PDF file');
       const conversionResult = await convertPdfToImages(publicUrl);
-      base64Images = conversionResult.base64_images;
+      base64Images = conversionResult.base64_images.map(removeDataUrlPrefix);
       mimeType = 'image/png';  // PDF conversion always results in PNG images
       console.log(`[PDF Processing] Converted PDF into ${base64Images.length} images. MIME type: ${mimeType}`);
     } else {
@@ -251,34 +251,38 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       mimeType = response.headers.get('content-type') || 'application/octet-stream';
       const arrayBuffer = await response.arrayBuffer();
       const base64 = Buffer.from(arrayBuffer).toString('base64');
-      base64Images = [base64];  // Store without data URL prefix
+      base64Images = [base64];
       console.log(`[File Processing] Converted file to base64. MIME type: ${mimeType}`);
     }
+
+    // Validate base64 data
+    base64Images = base64Images.map((img, index) => {
+      if (!isValidBase64(img)) {
+        console.error(`Invalid base64 data for image ${index + 1}`);
+        throw new Error(`Invalid base64 data for image ${index + 1}`);
+      }
+      return img;
+    });
 
     console.log(`Processed media - mimeType: ${mimeType}, Number of images: ${base64Images.length}`);
     console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
 
-    // For classification and analysis, we need to ensure the base64 string includes the data URL prefix
-    const base64WithPrefix = base64Images.map(img => 
-      img.startsWith('data:') ? img : `data:${mimeType};base64,${img}`
-    );
-
-    const classificationType = await classifyDocument(base64WithPrefix[0], mimeType);
+    const classificationType = await classifyDocument(base64Images[0], mimeType);
     console.log(`Document classified as: ${classificationType}`);
 
     let analysisResults: string[];
     console.log(`Starting analysis for ${classificationType}`);
-    console.log(`Analysis input - base64Images length: ${base64WithPrefix.length}, mimeType: ${mimeType}`);
+    console.log(`Analysis input - base64Images length: ${base64Images.length}, mimeType: ${mimeType}`);
 
     switch (classificationType) {
       case 'imaging_result':
-        analysisResults = await analyzeImagingResult(base64WithPrefix, mimeType);
+        analysisResults = await analyzeImagingResult(base64Images, mimeType);
         break;
       case 'health_record':
-        analysisResults = await analyzeHealthReport(base64WithPrefix, mimeType, publicUrl);
+        analysisResults = await analyzeHealthReport(base64Images, mimeType, publicUrl);
         break;
       case 'prescription':
-        analysisResults = await analyzePrescription(base64WithPrefix, mimeType);
+        analysisResults = await analyzePrescription(base64Images, mimeType);
         break;
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
@@ -306,6 +310,21 @@ ${analysisResultsFormatted}`;
     return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 }
+
+function removeDataUrlPrefix(base64String: string): string {
+  const prefixRegex = /^data:image\/[a-z]+;base64,/;
+  return base64String.replace(prefixRegex, '');
+}
+
+function isValidBase64(str: string) {
+  if (str === '' || str.trim() === '') { return false; }
+  try {
+    return btoa(atob(str)) == str;
+  } catch (err) {
+    return false;
+  }
+}
+
 
 async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: string[] }> {
   console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
