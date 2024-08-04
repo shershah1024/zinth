@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const MAX_BATCH_SIZE = 3;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
@@ -12,6 +15,13 @@ if (!ANTHROPIC_API_KEY) {
 if (!BASE_URL) {
   console.warn('BASE_URL is not set in the environment variables. Using default: http://localhost:3000');
 }
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('Missing required Supabase environment variables');
+  throw new Error('Missing required Supabase environment variables');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
@@ -134,21 +144,32 @@ async function analyzeImagingBatch(images: string[], mimeType: string, public_ur
 }
 
 async function storeResults(results: ImagingResult[], publicUrl: string): Promise<void> {
-  
-  const storeResponse = await fetch(`${BASE_URL}/api/store/imaging-results`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ results, publicUrl })
-  });
+  const patient_number = "919885842349"; // This should be dynamically determined in a real-world scenario
 
+  for (const result of results) {
+    const dataToInsert = {
+      patient_number,
+      date: result.date,
+      test: result.test_title,
+      comments: result.observations,
+      doctor: result.doctor_name,
+      public_url: publicUrl,
+    };
 
-  if (!storeResponse.ok) {
-    const errorText = await storeResponse.text();
-    console.error(`[Result Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
-    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
+    console.log('Data to be inserted:', JSON.stringify(dataToInsert, null, 2));
+
+    const { data, error } = await supabase
+      .from('imaging_results')
+      .insert([dataToInsert])
+      .select();
+
+    if (error) {
+      console.error('Supabase insert error:', error);
+      throw error;
+    }
+
+    console.log('Insert successful. Inserted data:', JSON.stringify(data, null, 2));
   }
-
-  console.log(`[Result Storage] Successfully stored results`);
 }
 
 export async function POST(request: NextRequest) {
@@ -188,9 +209,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Medical imaging analyzed and stored successfully', results: analysisResults });
   } catch (error) {
     console.error('Error processing medical imaging:', error);
-    return NextResponse.json({ 
-      error: 'Error processing medical imaging', 
-      details: error instanceof Error ? error.message : 'Unknown error' 
-    }, { status: 500 });
+    
+    if (typeof error === 'object' && error !== null) {
+      if ('code' in error && (error as any).code === '23505') {
+        return NextResponse.json({ error: 'Duplicate entry', details: 'This imaging result already exists in the database.' }, { status: 409 });
+      } else if ('message' in error) {
+        return NextResponse.json({ error: 'Database error', details: (error as { message: string }).message }, { status: 500 });
+      }
+    }
+    
+    if (error instanceof Error) {
+      return NextResponse.json({ error: 'Unexpected error', details: error.message }, { status: 500 });
+    }
+    
+    return NextResponse.json({ error: 'An unknown error occurred' }, { status: 500 });
   }
 }
