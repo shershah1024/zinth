@@ -44,7 +44,7 @@ function getCurrentDate(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-async function analyzeImagingBatch(images: string[], mimeType: string, doctorName: string): Promise<ImagingResult[]> {
+async function analyzeImagingBatch(images: string[], mimeType: string, public_url: string): Promise<ImagingResult[]> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-Key': ANTHROPIC_API_KEY as string,
@@ -87,7 +87,7 @@ async function analyzeImagingBatch(images: string[], mimeType: string, doctorNam
           ...imageContent,
           {
             type: "text",
-            text: `Analyze these ${images.length} medical imaging results. For each image, extract the following information: the date of the test, a short title for the test, and key observations or findings. If the date is not visible in an image, use 'NOT_VISIBLE' for the date field. Provide separate analysis for each image. Use the doctor name provided: ${doctorName}.`
+            text: `Analyze these ${images.length} medical imaging results. For each image, extract the following information: the date of the test, a short title for the test, and key observations or findings. If the date is not visible in an image, use 'NOT_VISIBLE' for the date field.`
           }
         ]
       }
@@ -126,7 +126,8 @@ async function analyzeImagingBatch(images: string[], mimeType: string, doctorNam
   const currentDate = getCurrentDate();
   results = results.map(result => ({
     ...result,
-    date: result.date === 'NOT_VISIBLE' ? currentDate : result.date
+    date: result.date === 'NOT_VISIBLE' ? currentDate : result.date,
+    doctor_name: result.doctor_name
   }));
 
   return results;
@@ -171,12 +172,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
+
     console.log(`Processing ${requestBody.images.length} images in batches of up to ${MAX_BATCH_SIZE}...`);
 
     const analysisResults: ImagingResult[] = [];
     for (let i = 0; i < requestBody.images.length; i += MAX_BATCH_SIZE) {
       const batch = requestBody.images.slice(i, i + MAX_BATCH_SIZE);
-      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType, requestBody.publicUrl);
+      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType,requestBody.publicUrl);
       analysisResults.push(...batchResults);
     }
 
