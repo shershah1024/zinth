@@ -114,8 +114,22 @@ export async function POST(req: Request) {
     const message = value.messages[0];
     const sender = value.contacts[0].wa_id;
 
-    let response: string;
+    // Process the message asynchronously
+    handleMessage(message, sender).catch(error => {
+      console.error('Error handling message:', error);
+    });
 
+    return okResponse;
+  } catch (error) {
+    console.error('Error processing webhook:', error);
+    return okResponse;
+  }
+}
+
+async function handleMessage(message: WhatsAppMessage, sender: string) {
+  let response: string;
+
+  try {
     switch (message.type) {
       case 'text':
         response = await handleTextMessage(message, sender);
@@ -131,15 +145,11 @@ export async function POST(req: Request) {
         response = "Unsupported message type";
     }
 
-    // Send the response back to the user asynchronously
-    sendMessage(sender, response).catch(error => {
-      console.error('Error sending message:', error);
-    });
-
-    return okResponse;
+    // Send the response back to the user
+    await sendMessage(sender, response);
   } catch (error) {
-    console.error('Error processing webhook:', error);
-    return okResponse;
+    console.error('Error handling message:', error);
+    await sendMessage(sender, "Sorry, an error occurred while processing your message.");
   }
 }
 
@@ -190,31 +200,25 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
   const MAX_BATCH_SIZE = 3; // Adjust this value as needed
 
-  const allBatches = [];
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
     const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
-    allBatches.push(batch);
-  }
 
-  try {
-    const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        batches: allBatches, 
-        mimeType, 
-        publicUrl 
-      })
-    });
+    try {
+      const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: batch, mimeType, publicUrl })
+      });
 
-    if (!analyzeResponse.ok) {
-      throw new Error(`Health report analysis failed with status ${analyzeResponse.status}`);
+      if (!analyzeResponse.ok) {
+        throw new Error(`Batch analysis failed with status ${analyzeResponse.status}`);
+      }
+
+      await analyzeResponse.json(); // We're not using the response data, but we wait for it to ensure the request is complete
+    } catch (error) {
+      console.error(`[Health Report Analysis] Error processing batch:`, error);
+      throw error;
     }
-
-    await analyzeResponse.json(); // We're not using the response data, but we wait for it to ensure the request is complete
-  } catch (error) {
-    console.error(`[Health Report Analysis] Error processing health report:`, error);
-    throw error;
   }
 
   // Analysis completed successfully
@@ -296,9 +300,9 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         const imagingResults = await analyzeImagingResult(base64Images, mimeType);
         analysisResult = imagingResults.join('\n');
         break;
-        case 'health_record':
-          analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
-          break;
+      case 'health_record':
+        analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
+        break;
       case 'prescription':
         const prescriptionResults = await analyzePrescription(base64Images, mimeType);
         analysisResult = prescriptionResults.join('\n');
@@ -309,11 +313,10 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     console.log(`Analysis completed. Result: ${analysisResult.substring(0, 100)}...`);
 
-    const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
+    return `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
 Document Classification: ${classificationType}
 Analysis Result: ${analysisResult}`;
 
-    return responseMessage;
   } catch (error) {
     console.error(`Error handling ${message.type} message from ${sender}:`, error);
     return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -364,6 +367,7 @@ async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: s
   console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
   return { base64_images: data.base64_images };
 }
+
 
 async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   if (message.interactive?.type === 'button_reply') {
