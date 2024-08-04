@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
-import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils';
+import { downloadAndUploadMedia } from '@/utils/whatsappMediaUtils';
 import { Buffer } from 'buffer';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
@@ -21,7 +21,6 @@ interface AnalysisResult {
   analysis: string;
 }
 
-// Types
 interface WhatsAppMessage {
   from: string;
   id: string;
@@ -64,7 +63,6 @@ interface WhatsAppWebhookData {
   }>;
 }
 
-// Webhook verification (for GET requests)
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get('hub.mode');
@@ -82,8 +80,9 @@ export async function GET(req: Request) {
   }
 }
 
-// Webhook handler (for POST requests)
 export async function POST(req: Request) {
+  const okResponse = NextResponse.json({ status: "OK" });
+
   try {
     const data: WhatsAppWebhookData = await req.json();
     console.log('Received webhook data:', JSON.stringify(data, null, 2));
@@ -91,25 +90,25 @@ export async function POST(req: Request) {
     const entry = data.entry[0];
     if (!entry) {
       console.log('No entry in webhook data');
-      return NextResponse.json({ status: "OK" });
+      return okResponse;
     }
 
     const change = entry.changes[0];
     if (!change) {
       console.log('No change in webhook data');
-      return NextResponse.json({ status: "OK" });
+      return okResponse;
     }
 
     const value = change.value;
 
     if (!value.contacts || value.contacts.length === 0) {
       console.log('Ignoring webhook data without contacts field');
-      return NextResponse.json({ status: "OK" });
+      return okResponse;
     }
 
     if (!value.messages || value.messages.length === 0) {
       console.log('Ignoring webhook data without messages');
-      return NextResponse.json({ status: "OK" });
+      return okResponse;
     }
 
     const message = value.messages[0];
@@ -132,15 +131,15 @@ export async function POST(req: Request) {
         response = "Unsupported message type";
     }
 
-    // Send the response back to the user
-    await sendMessage(sender, response);
+    // Send the response back to the user asynchronously
+    sendMessage(sender, response).catch(error => {
+      console.error('Error sending message:', error);
+    });
 
-    // Return OK response to WhatsApp
-    return NextResponse.json({ status: "OK" });
+    return okResponse;
   } catch (error) {
     console.error('Error processing webhook:', error);
-    // Even in case of an error, return OK to prevent WhatsApp from resending the message
-    return NextResponse.json({ status: "OK" });
+    return okResponse;
   }
 }
 
@@ -187,7 +186,7 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string): P
   return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
 }
 
-async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<void> {
+async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
 
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
@@ -206,11 +205,11 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
       throw new Error(`Health report batch analysis failed with status ${analyzeResponse.status}: ${errorText}`);
     }
 
-    // We don't need to do anything with the response, as the data is being stored on the server
     await analyzeResponse.json();
   }
 
-  console.log('[Health Report Analysis] Analysis completed successfully.');
+  console.log('[Health Report Analysis] Analysis completed. Returning link to view results.');
+  return HEALTH_RECORDS_VIEW_URL;
 }
 
 async function analyzePrescription(base64Images: string[], mimeType: string): Promise<string[]> {
@@ -288,8 +287,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         analysisResult = imagingResults.join('\n');
         break;
       case 'health_record':
-        await analyzeHealthReport(base64Images, mimeType, publicUrl);
-        analysisResult = `Your health report has been successfully processed. You can view the results at: ${HEALTH_RECORDS_VIEW_URL}`;
+        analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
         break;
       case 'prescription':
         const prescriptionResults = await analyzePrescription(base64Images, mimeType);
@@ -303,7 +301,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
 Document Classification: ${classificationType}
-${analysisResult}`;
+Analysis Result: ${analysisResult}`;
 
     return responseMessage;
   } catch (error) {
