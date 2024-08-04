@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia} from '@/utils/whatsappMediaUtils'; // Update this import path as needed
-
+import { Buffer } from 'buffer';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
@@ -11,18 +11,15 @@ const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
 const IMAGING_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/imaging-analysis`;
 const HEALTH_REPORT_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-health-reports`;
 const PRESCRIPTION_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-prescription`;
+const HEALTH_RECORDS_VIEW_URL = 'https://zinth.vercel.app/health-records';
 const MAX_BATCH_SIZE = 3;
-
-
 const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-type`;
-
 const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
 
 interface AnalysisResult {
   pageNumber: number;
   analysis: string;
 }
-
 
 // Types
 interface WhatsAppMessage {
@@ -105,13 +102,11 @@ export async function POST(req: Request) {
 
     const value = change.value;
 
-    // Check if the contacts field is present
     if (!value.contacts || value.contacts.length === 0) {
       console.log('Ignoring webhook data without contacts field');
       return NextResponse.json({ status: "Ignored" });
     }
 
-    // Check if the messages field is present
     if (!value.messages || value.messages.length === 0) {
       console.log('Ignoring webhook data without messages');
       return NextResponse.json({ status: "Ignored" });
@@ -137,7 +132,6 @@ export async function POST(req: Request) {
         response = "Unsupported message type";
     }
 
-    // Send response back to the user
     await sendMessage(sender, response);
 
     return NextResponse.json({ status: "OK" });
@@ -190,13 +184,12 @@ async function analyzeImagingResult(base64Images: string[], mimeType: string): P
   return Array.isArray(result.analysis) ? result.analysis : [result.analysis];
 }
 
-async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string[]> {
+async function analyzeHealthReport(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
-  const allResults: AnalysisResult[] = [];
 
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
     const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
-    console.log(`[Health Report Analysis] Processing batch ${i / MAX_BATCH_SIZE + 1} with ${batch.length} images`);
+    console.log(`[Health Report Analysis] Processing batch ${Math.floor(i / MAX_BATCH_SIZE) + 1} with ${batch.length} images`);
 
     const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
       method: 'POST',
@@ -210,16 +203,12 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
       throw new Error(`Health report batch analysis failed with status ${analyzeResponse.status}: ${errorText}`);
     }
 
-    const batchResults: AnalysisResult[] = await analyzeResponse.json();
-    allResults.push(...batchResults);
+    await analyzeResponse.json();
   }
 
-  // Sort results by page number and extract only the analysis strings
-  return allResults
-    .sort((a, b) => a.pageNumber - b.pageNumber)
-    .map(result => result.analysis);
+  console.log('[Health Report Analysis] Analysis completed. Returning link to view results.');
+  return HEALTH_RECORDS_VIEW_URL;
 }
-
 
 async function analyzePrescription(base64Images: string[], mimeType: string): Promise<string[]> {
   console.log(`Analyzing prescription - Number of images: ${base64Images.length}, MIME type: ${mimeType}`);
@@ -272,7 +261,6 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       console.log(`[File Processing] Converted file to base64. MIME type: ${mimeType}`);
     }
 
-    // Validate base64 data
     base64Images = base64Images.map((img, index) => {
       if (!isValidBase64(img)) {
         console.error(`Invalid base64 data for image ${index + 1}`);
@@ -287,39 +275,31 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     const classificationType = await classifyDocument(base64Images[0], mimeType);
     console.log(`Document classified as: ${classificationType}`);
 
-    let analysisResults: string[];
+    let analysisResult: string;
     console.log(`Starting analysis for ${classificationType}`);
     console.log(`Analysis input - base64Images length: ${base64Images.length}, mimeType: ${mimeType}`);
 
     switch (classificationType) {
       case 'imaging_result':
-        analysisResults = await analyzeImagingResult(base64Images, mimeType);
+        const imagingResults = await analyzeImagingResult(base64Images, mimeType);
+        analysisResult = imagingResults.join('\n');
         break;
       case 'health_record':
-        analysisResults = await analyzeHealthReport(base64Images, mimeType, publicUrl);
+        analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
         break;
       case 'prescription':
-        analysisResults = await analyzePrescription(base64Images, mimeType);
+        const prescriptionResults = await analyzePrescription(base64Images, mimeType);
+        analysisResult = prescriptionResults.join('\n');
         break;
       default:
         throw new Error(`Unexpected document classification: ${classificationType}`);
     }
 
-    console.log(`Analysis completed. Number of results: ${analysisResults.length}`);
-    console.log(`First analysis result: ${analysisResults[0]?.substring(0, 100)}`);
-
-    const analysisResultsFormatted = analysisResults.map((result, index) => 
-      `Page ${index + 1}: ${result}`
-    ).join('\n');
+    console.log(`Analysis completed. Result: ${analysisResult.substring(0, 100)}...`);
 
     const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
-Path: ${path}
-Public URL: ${publicUrl}
-MIME Type: ${mimeType}
-Number of images: ${base64Images.length}
 Document Classification: ${classificationType}
-Analysis Results:
-${analysisResultsFormatted}`;
+Analysis Result: ${analysisResult}`;
 
     return responseMessage;
   } catch (error) {
@@ -341,7 +321,6 @@ function isValidBase64(str: string) {
     return false;
   }
 }
-
 
 async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: string[] }> {
   console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
@@ -373,8 +352,6 @@ async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: s
   console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
   return { base64_images: data.base64_images };
 }
-
-
 
 async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   if (message.interactive?.type === 'button_reply') {
