@@ -262,6 +262,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     }
 
     const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
+    console.log("path is ",path)
 
     let base64Images: string[] = [];
     let mimeType: string;
@@ -278,6 +279,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       const base64 = Buffer.from(arrayBuffer).toString('base64');
       base64Images = [base64];
       mimeType = response.headers.get('content-type') || 'application/octet-stream';
+      console.log("mime type is", mimeType)
     }
 
     const classificationType = await classifyDocument(base64Images[0], mimeType);
