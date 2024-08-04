@@ -190,36 +190,30 @@ async function analyzeHealthReport(base64Images: string[], mimeType: string, pub
   console.log(`[Health Report Analysis] Analyzing ${base64Images.length} images`);
   const MAX_BATCH_SIZE = 3; // Adjust this value as needed
 
-  const allBatches = [];
   for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
     const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
-    allBatches.push(batch);
-  }
 
-  try {
-    const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        batches: allBatches, 
-        mimeType, 
-        publicUrl 
-      })
-    });
+    try {
+      const analyzeResponse = await fetch(HEALTH_REPORT_ANALYSIS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: batch, mimeType, publicUrl })
+      });
 
-    if (!analyzeResponse.ok) {
-      throw new Error(`Health report analysis failed with status ${analyzeResponse.status}`);
+      if (!analyzeResponse.ok) {
+        throw new Error(`Batch analysis failed with status ${analyzeResponse.status}`);
+      }
+
+      await analyzeResponse.json(); // We're not using the response data, but we wait for it to ensure the request is complete
+    } catch (error) {
+      console.error(`[Health Report Analysis] Error processing batch:`, error);
+      throw error;
     }
-
-    await analyzeResponse.json(); // We're not using the response data, but we wait for it to ensure the request is complete
-  } catch (error) {
-    console.error(`[Health Report Analysis] Error processing health report:`, error);
-    throw error;
   }
 
-  // Analysis completed successfully
+  // All batches processed successfully
   console.log(`[Health Report Analysis] Completed. Analyzed ${base64Images.length} images.`);
-  return `Your health report has been analyzed. View your health records here: ${HEALTH_RECORDS_VIEW_URL}`;
+  return HEALTH_RECORDS_VIEW_URL;
 }
 
 async function analyzePrescription(base64Images: string[], mimeType: string): Promise<string[]> {
