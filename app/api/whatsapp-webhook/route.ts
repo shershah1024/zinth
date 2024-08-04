@@ -116,6 +116,12 @@ export async function POST(req: Request) {
     const message = value.messages[0];
     const sender = value.contacts[0].wa_id;
 
+    // Check if the message is older than 3 minutes
+    if (isMessageOld(message.timestamp)) {
+      console.log('Ignoring message older than 3 minutes');
+      return okResponse;
+    }
+
     let response: string;
 
     switch (message.type) {
@@ -143,6 +149,15 @@ export async function POST(req: Request) {
     console.error('Error processing webhook:', error);
     return okResponse;
   }
+}
+
+// Helper function to check if a message is older than 3 minutes
+function isMessageOld(timestamp: string): boolean {
+  const messageTime = new Date(parseInt(timestamp) * 1000); // Convert Unix timestamp to Date
+  const currentTime = new Date();
+  const timeDifference = currentTime.getTime() - messageTime.getTime();
+  const threeMinutesInMs = 3 * 60 * 1000;
+  return timeDifference > threeMinutesInMs;
 }
 
 async function handleTextMessage(message: WhatsAppMessage, sender: string): Promise<string> {
