@@ -19,6 +19,8 @@ const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
 const IMAGING_RESULTS_VIEW_URL = 'https://zinth.vercel.app/imaging-results';
 const PRESCRIPTION_VIEW_URL = 'https://zinth.vercel.app/prescriptions';
 
+console.log("nect public base url is", NEXT_PUBLIC_BASE_URL)
+
 interface AnalysisResult {
   pageNumber: number;
   analysis: string;
