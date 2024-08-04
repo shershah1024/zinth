@@ -16,13 +16,13 @@ interface ImagingResult {
   doctor_name: string;
 }
 
-async function analyzeImagingResult(images: string[], mimeType: string, doctorName: string, publicUrl: string, patientNumber: string): Promise<ImagingResult[]> {
+async function analyzeImagingResult(images: string[], mimeType: string, publicUrl: string): Promise<ImagingResult[]> {
   console.log(`[Imaging Analysis] Analyzing ${images.length} images`);
   try {
     const analyzeResponse = await fetch(`${BASE_URL}/api/imaging-analysis`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images, mimeType, doctorName, publicUrl, patientNumber })
+      body: JSON.stringify({ images, mimeType, publicUrl })
     });
     
     if (!analyzeResponse.ok) {
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     const allAnalysisResults: ImagingResult[] = [];
     for (let i = 0; i < base64Images.length; i += MAX_BATCH_SIZE) {
       const batch = base64Images.slice(i, i + MAX_BATCH_SIZE);
-      const batchResults = await analyzeImagingResult(batch, mimeType, doctorName, publicUrl, patientNumber);
+      const batchResults = await analyzeImagingResult(batch, mimeType, publicUrl);
       allAnalysisResults.push(...batchResults);
     }
 

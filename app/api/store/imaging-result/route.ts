@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       patient_number,
       date: result.date,
       test: result.test,
-      comments: result.comments,
+      comments: result.observations,
       doctor: result.doctor,
       public_url: publicUrl,
     });

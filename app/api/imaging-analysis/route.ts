@@ -38,7 +38,6 @@ interface RequestBody {
   images: string[];
   mimeType: string;
   publicUrl: string;
-  doctorName: string;
 }
 
 async function analyzeImagingBatch(images: string[], mimeType: string, doctorName: string): Promise<ImagingResult[]> {
@@ -56,8 +55,8 @@ async function analyzeImagingBatch(images: string[], mimeType: string, doctorNam
       properties: {
         date: { type: "string", description: "Date of the imaging test, in YYYY-MM-DD format. If not visible, use 'NOT_VISIBLE'." },
         test_title: { type: "string", description: "A short title for the imaging test" },
-        observations: { type: "string", description: "Key observations or findings from the imaging" },
-        doctor_name: { type: "string", description: "Name of the doctor" }
+        observations: { type: "string", description: "Doctor's notes on the imaging result. Output none if not available" },
+        doctor_name: { type: "string", description: "Name of the doctor. Output Not available if there is no data for this" }
       },
       required: ["date", "test_title", "observations", "doctor_name"]
     }
@@ -157,17 +156,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
-    if (!requestBody.doctorName) {
-      console.error('Invalid input: doctorName is missing');
-      return NextResponse.json({ error: 'doctorName is required' }, { status: 400 });
-    }
 
     console.log(`Processing ${requestBody.images.length} images in batches of up to ${MAX_BATCH_SIZE}...`);
 
     const analysisResults: ImagingResult[] = [];
     for (let i = 0; i < requestBody.images.length; i += MAX_BATCH_SIZE) {
       const batch = requestBody.images.slice(i, i + MAX_BATCH_SIZE);
-      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType, requestBody.doctorName);
+      const batchResults = await analyzeImagingBatch(batch, requestBody.mimeType,requestBody.publicUrl);
       analysisResults.push(...batchResults);
     }
 
