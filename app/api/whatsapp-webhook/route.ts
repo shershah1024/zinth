@@ -251,6 +251,9 @@ async function analyzePrescription(base64Images: string[], mimeType: string, pub
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message from ${sender}:`, message[message.type as 'image' | 'document']?.id);
 
+  // Send an intermediary message
+  await sendMessage(sender, `We've received your ${message.type}. We're analyzing it now and will send you the results soon.`);
+
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
     if (!mediaInfo) {
@@ -313,9 +316,23 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     console.log(`Analysis completed. Result: ${analysisResult}`);
 
-    const responseMessage = `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} received from ${sender} and processed.
-Document Classification: ${classificationType}
-Analysis Result: ${analysisResult}`;
+    let resultUrl: string;
+    switch (classificationType) {
+      case 'imaging_result':
+        resultUrl = IMAGING_RESULTS_VIEW_URL;
+        break;
+      case 'health_record':
+        resultUrl = HEALTH_RECORDS_VIEW_URL;
+        break;
+      case 'prescription':
+        resultUrl = 'https://zinth.vercel.app/prescriptions';
+        break;
+      default:
+        resultUrl = 'https://zinth.vercel.app'; // Default URL
+    }
+
+    const responseMessage = `We've finished processing your ${message.type}.
+You can view your results here: ${resultUrl}`;
 
     return responseMessage;
   } catch (error) {
@@ -323,6 +340,7 @@ Analysis Result: ${analysisResult}`;
     return `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 }
+
 
 function removeDataUrlPrefix(base64String: string): string {
   const prefixRegex = /^data:image\/[a-z]+;base64,/;
