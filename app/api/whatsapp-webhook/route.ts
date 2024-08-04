@@ -5,6 +5,9 @@ import { sendMessage } from '@/utils/whatsappUtils';
 import { downloadAndUploadMedia } from '@/utils/whatsappMediaUtils';
 import { Buffer } from 'buffer';
 
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
 const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
