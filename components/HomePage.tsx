@@ -41,10 +41,10 @@ const HomePage: React.FC = () => {
             transition={{ duration: 0.8 }}
           >
             <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Synthesize Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">Health Journey</span> with Zinth
+              The Simplest Way to <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">Track Your Health</span> with Zinth
             </h1>
             <p className="text-xl text-gray-600 mb-8">
-              Effortlessly manage prescriptions, track medications, and visualize your health records - all in one intuitive platform.
+              Easily manage prescriptions, keep track of medications, and see all your health records in one user-friendly app.
             </p>
             <Link href="/dashboard">
               <motion.button 
@@ -52,7 +52,7 @@ const HomePage: React.FC = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                Get Started <ArrowRight className="ml-2" />
+                Start Now <ArrowRight className="ml-2" />
               </motion.button>
             </Link>
           </motion.div>
@@ -68,33 +68,33 @@ const HomePage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
           <FeatureCard
-            title="Smart Upload"
-            description="Easily upload and manage all your health records and prescriptions in one secure location."
+            title="Easy Upload"
+            description="Simply upload and organize all your health records and prescriptions in one safe place."
             icon={ClipboardList}
           />
           <FeatureCard
-            title="Timely Reminders"
-            description="Get medication reminders via WhatsApp for seamless integration with your daily life."
+            title="Helpful Reminders"
+            description="Get medication reminders on WhatsApp to fit smoothly into your daily routine."
             icon={Bell}
           />
           <FeatureCard
-            title="Medication Tracking"
-            description="Mark medications as taken through our app or WhatsApp for convenient adherence tracking."
+            title="Medicine Tracking"
+            description="Mark your medications as taken through our app or WhatsApp for easy tracking."
             icon={CheckSquare}
           />
           <FeatureCard
-            title="Health Insights"
-            description="View clear, trend-based visualizations of your health records and test results over time."
+            title="Health Trends"
+            description="See clear, easy-to-understand charts of your health records and test results over time."
             icon={LineChart}
           />
           <FeatureCard
-            title="WhatsApp Integration"
-            description="Add health records and prescriptions effortlessly by sending a message on WhatsApp."
+            title="WhatsApp Friendly"
+            description="Add health records and prescriptions easily by sending a message on WhatsApp."
             icon={MessageSquare}
           />
           <FeatureCard
-            title="Comprehensive History"
-            description="Access a complete history of your current and past medications, including detailed dosage information."
+            title="Full History"
+            description="See a complete list of your current and past medications, including all dosage details."
             icon={ClipboardList}
           />
         </div>
@@ -105,8 +105,8 @@ const HomePage: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8 }}
         >
-          <h2 className="text-2xl font-bold mb-3">Ready to Synthesize Your Health Data?</h2>
-          <p className="text-lg mb-5 max-w-xl mx-auto">Join Zinth today and experience a smarter way to manage your health information.</p>
+          <h2 className="text-2xl font-bold mb-3">Ready to Simplify Your Health Tracking?</h2>
+          <p className="text-lg mb-5 max-w-xl mx-auto">Join Zinth today and experience an easier way to manage your health information.</p>
           <Link href="/dashboard">
             <motion.button 
               className="bg-white text-purple-600 font-bold py-2 px-6 rounded-full text-sm transition duration-300 flex items-center mx-auto"
