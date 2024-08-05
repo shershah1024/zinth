@@ -256,24 +256,22 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
         throw new Error(`Health report analysis failed: ${errorText}`);
       }
 
-      const result = await response.json();
-      console.log('Health report analysis result:', result);
+      const analysisResponse = await response.json();
+      console.log('Health report analysis result:', analysisResponse);
 
-      // Type assertion to treat the result as TextAnalysisResult
-      const analysisResult = result as TextAnalysisResult;
-      console.log("analysis result is", analysisResult)
-
-      if (!analysisResult.components || analysisResult.components.length === 0) {
+      if (!analysisResponse.result || !analysisResponse.result.components || analysisResponse.result.components.length === 0) {
         throw new Error('No analysis results found');
       }
 
+      const analysisResult = analysisResponse.result;
+
       // Extract the names of the components that were analyzed
       const analyzedComponents = analysisResult.components
-        .map((component) => component.component)
+        .map((component: any) => component.component)
         .join(', ');
 
       // Create a simple summary message for the user
-      const summaryMessage = `We have saved ${analyzedComponents}. data. You can see it in your dashboard - https://zinth.vercel.app/health-records `;
+      const summaryMessage = `Your health report from ${analysisResult.date} has been analyzed and stored successfully. We found results for the following components: ${analyzedComponents}. Please consult with your healthcare provider for a detailed interpretation of these results.`;
 
       console.log('Summary message for user:', summaryMessage);
 
