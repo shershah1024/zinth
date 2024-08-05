@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ClipboardList, Bell, CheckSquare, LineChart, MessageSquare, ArrowRight } from 'lucide-react';
+import { ClipboardList, Bell, CheckSquare, LineChart, MessageSquare, ArrowRight, Smartphone } from 'lucide-react';
 
 interface FeatureCardProps {
   title: string;
@@ -41,10 +41,10 @@ const HomePage: React.FC = () => {
             transition={{ duration: 0.8 }}
           >
             <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              The Simplest Way to <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">Track Your Health</span> with Zinth
+              Zinth: <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">The Simplest Way to Track Your Health</span>
             </h1>
             <p className="text-xl text-gray-600 mb-8">
-              Easily manage prescriptions, keep track of medications, and see all your health records in one user-friendly app.
+              Manage your health effortlessly with Zinth's user-friendly app and WhatsApp integration. Track medications, get reminders, and update records - your choice, your convenience.
             </p>
             <Link href="/dashboard">
               <motion.button 
@@ -68,33 +68,33 @@ const HomePage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
           <FeatureCard
-            title="Easy Upload"
-            description="Simply upload and organize all your health records and prescriptions in one safe place."
-            icon={ClipboardList}
+            title="Flexible Interaction"
+            description="Manage your health through our intuitive app or via WhatsApp - choose what works best for you."
+            icon={Smartphone}
           />
           <FeatureCard
-            title="Helpful Reminders"
-            description="Get medication reminders on WhatsApp to fit smoothly into your daily routine."
+            title="Smart Reminders"
+            description="Receive timely medication reminders via the app or WhatsApp, fitting seamlessly into your routine."
             icon={Bell}
           />
           <FeatureCard
-            title="Medicine Tracking"
-            description="Mark your medications as taken through our app or WhatsApp for easy tracking."
+            title="Easy Updates"
+            description="Mark medications as taken or add new health records quickly through the app or a simple WhatsApp message."
             icon={CheckSquare}
           />
           <FeatureCard
+            title="One-Stop Health Hub"
+            description="Access all your health information in one place, whether you prefer using our app or WhatsApp."
+            icon={ClipboardList}
+          />
+          <FeatureCard
             title="Health Trends"
-            description="See clear, easy-to-understand charts of your health records and test results over time."
+            description="View easy-to-understand charts of your health records and test results over time in our app."
             icon={LineChart}
           />
           <FeatureCard
-            title="WhatsApp Friendly"
-            description="Add health records and prescriptions easily by sending a message on WhatsApp."
-            icon={MessageSquare}
-          />
-          <FeatureCard
-            title="Full History"
-            description="See a complete list of your current and past medications, including all dosage details."
+            title="Complete History"
+            description="Keep a full record of your medications and health data, accessible anytime via our app or WhatsApp."
             icon={ClipboardList}
           />
         </div>
@@ -105,8 +105,8 @@ const HomePage: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8 }}
         >
-          <h2 className="text-2xl font-bold mb-3">Ready to Simplify Your Health Tracking?</h2>
-          <p className="text-lg mb-5 max-w-xl mx-auto">Join Zinth today and experience an easier way to manage your health information.</p>
+          <h2 className="text-2xl font-bold mb-3">Ready to Simplify Your Health Management?</h2>
+          <p className="text-lg mb-5 max-w-xl mx-auto">Join Zinth today and experience how easy health tracking can be, whether you prefer our app or WhatsApp.</p>
           <Link href="/dashboard">
             <motion.button 
               className="bg-white text-purple-600 font-bold py-2 px-6 rounded-full text-sm transition duration-300 flex items-center mx-auto"

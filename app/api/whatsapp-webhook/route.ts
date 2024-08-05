@@ -18,7 +18,7 @@ const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-t
 const IMAGING_RESULTS_VIEW_URL = 'https://zinth.vercel.app/imaging-results';
 const PRESCRIPTION_VIEW_URL = 'https://zinth.vercel.app/prescriptions';
 
-console.log("nect public base url is", NEXT_PUBLIC_BASE_URL)
+console.log("next public base url is", NEXT_PUBLIC_BASE_URL);
 
 interface AnalysisResult {
   pageNumber: number;
@@ -65,6 +65,13 @@ interface WhatsAppWebhookData {
       field: string;
     }>;
   }>;
+}
+
+interface AnalysisInput {
+  text?: string;
+  images?: string[];
+  mimeType?: string;
+  publicUrl?: string;
 }
 
 // Add a simple in-memory cache for message deduplication
@@ -161,20 +168,15 @@ function isMessageOld(timestamp: string): boolean {
   return timeDifference > threeMinutesInMs;
 }
 
-async function handleTextMessage(message: WhatsAppMessage, sender: string): Promise<void> {
-  if (message.text?.body) {
-    console.log('Received text message:', message.text.body);
-    await sendMessage(sender, `You said: ${message.text.body}`);
-  } else {
-    await sendMessage(sender, "Received an empty text message");
-  }
-}
+async function classifyDocument(input: string, isImage: boolean = false, mimeType?: string): Promise<string> {
+  const body = isImage 
+    ? { image: input, mimeType } 
+    : { text: input };
 
-async function classifyDocument(base64Image: string, mimeType: string): Promise<string> {
   const response = await fetch(DOCUMENT_CLASSIFICATION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: base64Image, mimeType }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -183,6 +185,118 @@ async function classifyDocument(base64Image: string, mimeType: string): Promise<
 
   const result = await response.json();
   return result.type;
+}
+
+async function processAndAnalyzeDocument(input: AnalysisInput): Promise<{ classificationType: string, analysis: string, resultUrl: string }> {
+  let classificationType: string;
+  
+  if (input.text) {
+    classificationType = await classifyDocument(input.text);
+  } else if (input.images && input.images.length > 0) {
+    classificationType = await classifyDocument(input.images[0], true, input.mimeType);
+  } else {
+    throw new Error("Invalid input: no text or images provided");
+  }
+
+  console.log(`Document classified as: ${classificationType}`);
+
+  let resultUrl: string;
+  let analysis: string;
+
+  switch (classificationType) {
+    case 'imaging_result':
+      resultUrl = IMAGING_RESULTS_VIEW_URL;
+      analysis = await analyzeImagingResult(input.images || [], input.mimeType || '', input.text || input.publicUrl || '');
+      break;
+    case 'health_record':
+      resultUrl = HEALTH_RECORDS_VIEW_URL;
+      analysis = await analyzeHealthReport(input.images || [], input.mimeType || '', input.text || input.publicUrl || '');
+      break;
+    case 'prescription':
+      resultUrl = PRESCRIPTION_VIEW_URL;
+      analysis = await analyzePrescription(input.images || [], input.mimeType || '', input.text || input.publicUrl || '');
+      break;
+    default:
+      resultUrl = 'https://zinth.vercel.app'; // Default URL
+      analysis = "Unable to classify the document.";
+  }
+
+  return { classificationType, analysis, resultUrl };
+}
+
+async function handleTextMessage(message: WhatsAppMessage, sender: string): Promise<void> {
+  if (message.text?.body) {
+    console.log('Received text message:', message.text.body);
+    
+    try {
+      const { classificationType, analysis, resultUrl } = await processAndAnalyzeDocument({ text: message.text.body });
+      
+      const response = `I have processed your ${classificationType.replace('_', ' ')}. Here's a brief summary:\n\n${analysis}\n\nFor more details, please check here ${resultUrl} in a few seconds.`;
+      await sendMessage(sender, response);
+    } catch (error) {
+      console.error('Error processing text message:', error);
+      await sendMessage(sender, `Sorry, there was an error processing your message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  } else {
+    await sendMessage(sender, "Received an empty text message");
+  }
+}
+
+async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<void> {
+  console.log(`Received ${message.type} message from ${sender}:`, message[message.type as 'image' | 'document']?.id);
+
+  try {
+    const mediaInfo = message[message.type as 'image' | 'document'];
+    if (!mediaInfo) {
+      throw new Error(`Invalid ${message.type} message structure`);
+    }
+
+    const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
+    console.log("Downloaded media - path:", path, "publicUrl:", publicUrl);
+
+    let base64Images: string[];
+    let mimeType: string;
+
+    if (path.toLowerCase().endsWith('.pdf')) {
+      console.log('[PDF Processing] Starting conversion for PDF file');
+      const conversionResult = await convertPdfToImages(publicUrl);
+      base64Images = conversionResult.base64_images.map(removeDataUrlPrefix);
+      mimeType = 'image/png';  // PDF conversion always results in PNG images
+      console.log(`[PDF Processing] Converted PDF into ${base64Images.length} images. MIME type: ${mimeType}`);
+    } else {
+      console.log('[File Processing] Processing non-PDF file');
+      const response = await fetch(publicUrl);
+      mimeType = response.headers.get('content-type') || 'application/octet-stream';
+      const arrayBuffer = await response.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      base64Images = [base64];
+      console.log(`[File Processing] Converted file to base64. MIME type: ${mimeType}`);
+    }
+
+    base64Images = base64Images.map((img, index) => {
+      if (!isValidBase64(img)) {
+        console.error(`Invalid base64 data for image ${index + 1}`);
+        throw new Error(`Invalid base64 data for image ${index + 1}`);
+      }
+      return img;
+    });
+
+    console.log(`Processed media - mimeType: ${mimeType}, Number of images: ${base64Images.length}`);
+    console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
+
+    const { classificationType, analysis, resultUrl } = await processAndAnalyzeDocument({ 
+      images: base64Images, 
+      mimeType, 
+      publicUrl 
+    });
+
+    const response = `I have processed your ${classificationType.replace('_', ' ')}. Here's a brief summary:\n\n${analysis}\n\nFor more details, please check here ${resultUrl} in a few seconds.`;
+    await sendMessage(sender, response);
+  } catch (error) {
+    console.error(`Error handling ${message.type} message from ${sender}:`, error);
+    const errorMessage = `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    await sendMessage(sender, errorMessage);
+  }
 }
 
 async function analyzeImagingResult(base64Images: string[], mimeType: string, publicUrl: string): Promise<string> {
@@ -270,80 +384,6 @@ async function analyzePrescription(base64Images: string[], mimeType: string, pub
   console.log(`Prescription analysis completed`);
   
   return result.analysis;
-}
-
-async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<void> {
-  console.log(`Received ${message.type} message from ${sender}:`, message[message.type as 'image' | 'document']?.id);
-
-  try {
-    const mediaInfo = message[message.type as 'image' | 'document'];
-    if (!mediaInfo) {
-      throw new Error(`Invalid ${message.type} message structure`);
-    }
-
-    const { path, publicUrl } = await downloadAndUploadMedia(mediaInfo.id);
-    console.log("Downloaded media - path:", path, "publicUrl:", publicUrl);
-
-    let base64Images: string[];
-    let mimeType: string;
-
-    if (path.toLowerCase().endsWith('.pdf')) {
-      console.log('[PDF Processing] Starting conversion for PDF file');
-      const conversionResult = await convertPdfToImages(publicUrl);
-      base64Images = conversionResult.base64_images.map(removeDataUrlPrefix);
-      mimeType = 'image/png';  // PDF conversion always results in PNG images
-      console.log(`[PDF Processing] Converted PDF into ${base64Images.length} images. MIME type: ${mimeType}`);
-    } else {
-      console.log('[File Processing] Processing non-PDF file');
-      const response = await fetch(publicUrl);
-      mimeType = response.headers.get('content-type') || 'application/octet-stream';
-      const arrayBuffer = await response.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString('base64');
-      base64Images = [base64];
-      console.log(`[File Processing] Converted file to base64. MIME type: ${mimeType}`);
-    }
-
-    base64Images = base64Images.map((img, index) => {
-      if (!isValidBase64(img)) {
-        console.error(`Invalid base64 data for image ${index + 1}`);
-        throw new Error(`Invalid base64 data for image ${index + 1}`);
-      }
-      return img;
-    });
-
-    console.log(`Processed media - mimeType: ${mimeType}, Number of images: ${base64Images.length}`);
-    console.log("First 100 characters of first base64 image:", base64Images[0].substring(0, 100));
-
-    const classificationType = await classifyDocument(base64Images[0], mimeType);
-    console.log(`Document classified as: ${classificationType}`);
-
-    let resultUrl: string;
-    switch (classificationType) {
-      case 'imaging_result':
-        resultUrl = IMAGING_RESULTS_VIEW_URL;
-        break;
-      case 'health_record':
-        resultUrl = HEALTH_RECORDS_VIEW_URL;
-        break;
-      case 'prescription':
-        resultUrl = PRESCRIPTION_VIEW_URL;
-        break;
-      default:
-        resultUrl = 'https://zinth.vercel.app'; // Default URL
-    }
-
-    // Construct the new response
-    const finalResponse = `I have received your ${classificationType.replace('_', ' ')}. Please check here ${resultUrl} in a few seconds, and you should be able to see it.`;
-
-    // Send the final response
-    await sendMessage(sender, finalResponse);
-  } catch (error) {
-    console.error(`Error handling ${message.type} message from ${sender}:`, error);
-    const errorMessage = `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    
-    // Send the error message
-    await sendMessage(sender, errorMessage);
-  }
 }
 
 function removeDataUrlPrefix(base64String: string): string {

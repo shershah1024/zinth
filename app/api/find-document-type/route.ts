@@ -1,5 +1,3 @@
-//app/api/find-document-type/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -12,8 +10,9 @@ if (!ANTHROPIC_API_KEY) {
 type DocumentType = 'imaging_result' | 'health_record' | 'prescription';
 
 interface RequestBody {
-  image: string;
-  mimeType: string;
+  image?: string;
+  text?: string;
+  mimeType?: string;
 }
 
 interface ClassificationResult extends RequestBody {
@@ -25,17 +24,17 @@ export async function POST(request: NextRequest) {
     const requestBody: RequestBody = await request.json();
     console.log('Received request body keys:', Object.keys(requestBody));
 
-    if (!requestBody.image || typeof requestBody.image !== 'string' || requestBody.image.length === 0) {
-      console.error('Invalid input: image is missing or empty');
-      return NextResponse.json({ error: 'An image is required' }, { status: 400 });
+    if (!requestBody.image && !requestBody.text) {
+      console.error('Invalid input: both image and text are missing');
+      return NextResponse.json({ error: 'Either an image or text is required' }, { status: 400 });
     }
 
-    if (!requestBody.mimeType) {
-      console.error('Invalid input: mimeType is missing');
-      return NextResponse.json({ error: 'mimeType is required' }, { status: 400 });
+    if (requestBody.image && !requestBody.mimeType) {
+      console.error('Invalid input: mimeType is missing for image input');
+      return NextResponse.json({ error: 'mimeType is required when providing an image' }, { status: 400 });
     }
 
-    console.log('Received request with an image');
+    console.log(`Received request with ${requestBody.image ? 'an image' : 'text'}`);
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const tools = [{
       name: "classify_medical_document",
-      description: "Classify a medical document as either an imaging result, health record(medical tests including blood and urine tests), or a prescription.",
+      description: "Classify a medical document as either an imaging result, health record (medical tests including blood and urine tests), or a prescription.",
       input_schema: {
         type: "object",
         properties: {
@@ -59,6 +58,21 @@ export async function POST(request: NextRequest) {
       }
     }];
 
+    const content = [
+      requestBody.image ? {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: requestBody.mimeType,
+          data: requestBody.image
+        }
+      } : null,
+      {
+        type: "text",
+        text: requestBody.text || "Analyze this medical document and classify it as one of the following: imaging result, health record, or prescription. Use the classify_medical_document tool to provide the classification."
+      }
+    ].filter(Boolean);
+
     const body = {
       model: "claude-3-5-sonnet-20240620",
       max_tokens: 1000,
@@ -68,20 +82,7 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: requestBody.mimeType,
-                data: requestBody.image
-              }
-            },
-            {
-              type: "text",
-              text: "Analyze this medical document and classify it as one of the following: imaging result, health record, or prescription. Use the classify_medical_document tool to provide the classification."
-            }
-          ]
+          content: content
         }
       ]
     };
@@ -121,8 +122,8 @@ export async function POST(request: NextRequest) {
 
     const result: ClassificationResult = {
       type,
-      image: requestBody.image,
-      mimeType: requestBody.mimeType
+      ...(requestBody.image && { image: requestBody.image, mimeType: requestBody.mimeType }),
+      ...(requestBody.text && { text: requestBody.text })
     };
 
     return NextResponse.json(result);
