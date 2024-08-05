@@ -167,16 +167,17 @@ async function uploadToSupabase(results: AnalysisResult[], patientNumber: string
     const test_id = uuidv4(); // Generate a UUID for each test
     console.log(`Generated test_id: ${test_id}`);
     return result.components.map(component => ({
-      test_id: test_id,
-      patient_number: patientNumber,
-      test_date: result.date,
-      test_component: component.component,
-      test_value: component.value,
-      test_unit: component.unit,
-      normal_range_min: component.normal_range_min,
-      normal_range_max: component.normal_range_max,
-      normal_range_text: component.normal_range_text,
-      public_url: "none"
+      patient_number: '919885842349', // Replace with actual patient number logic
+        test_id: crypto.randomUUID(),
+        component: component.component,
+        unit: component.unit,
+        number_value: typeof component.value === 'number' ? component.value : null,
+        text_value: typeof component.value === 'string' ? component.value : null,
+        normal_range_min: component.normal_range_min,
+        normal_range_max: component.normal_range_max,
+        date: result.date,
+        public_url: "none",
+        normal_range_text: component.normal_range_text,
     }));
   });
 
