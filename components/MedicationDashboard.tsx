@@ -89,7 +89,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                 id={`${medication.id}-${timing}`}
                 checked={isChecked}
                 onCheckedChange={() => onUpdateAdherence(medication.id, date, timing, !isChecked)}
-                className="text-blue-500 border-blue-500"
+                className="text-indigo-600 border-indigo-300 focus:ring-indigo-500"
               />
               <label
                 htmlFor={`${medication.id}-${timing}`}
@@ -125,7 +125,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                 {activeTimings.map((timing) => {
                   const status = medication.streak[date]?.[timing];
                   let bgColor = 'bg-gray-200';
-                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-blue-500';
+                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-indigo-500';
                   if (status === StreakTimingStatus.NotTaken) bgColor = 'bg-red-400';
                   return (
                     <div
@@ -146,8 +146,8 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
   const CurrentMedicationsCard = useMemo(() => {
     if (!currentMedications) return null;
     return (
-      <Card className="bg-blue-50 shadow-lg rounded-lg overflow-hidden border border-blue-200">
-        <CardHeader className="bg-blue-500 text-white">
+      <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg rounded-lg overflow-hidden border border-indigo-200">
+        <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
           <CardTitle className="flex items-center">
             <Pill className="mr-2" />
             Current Medications
@@ -167,7 +167,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
               >
                 <div className="flex justify-between items-center mb-2">
                   <h3 
-                    className="text-lg font-medium cursor-pointer hover:text-blue-600 transition-colors flex items-center"
+                    className="text-lg font-medium cursor-pointer hover:text-indigo-600 transition-colors flex items-center"
                     onClick={() => setExpandedMedication(prev => prev === med.id ? null : med.id)}
                   >
                     {med.medicine}
@@ -178,7 +178,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                       onClick={() => handleDownload(med.public_url!, med.medicine)}
                       variant="outline"
                       size="sm"
-                      className="text-blue-600 hover:text-blue-700"
+                      className="text-indigo-600 hover:text-indigo-700 border-indigo-300 hover:border-indigo-500"
                     >
                       <Download className="h-4 w-4 mr-1" />
                       Prescription
@@ -196,11 +196,11 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                     transition={{ duration: 0.3 }}
                   >
                     <div className="flex justify-between items-center mb-4">
-                      <Button onClick={handlePrevMonth} variant="outline" size="icon" className="text-blue-600 hover:text-blue-700">
+                      <Button onClick={handlePrevMonth} variant="outline" size="icon" className="text-indigo-600 hover:text-indigo-700 border-indigo-300 hover:border-indigo-500">
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      <span className="text-lg font-medium text-blue-600">{format(currentMonth, 'MMMM yyyy')}</span>
-                      <Button onClick={handleNextMonth} variant="outline" size="icon" className="text-blue-600 hover:text-blue-700">
+                      <span className="text-lg font-medium text-indigo-600">{format(currentMonth, 'MMMM yyyy')}</span>
+                      <Button onClick={handleNextMonth} variant="outline" size="icon" className="text-indigo-600 hover:text-indigo-700 border-indigo-300 hover:border-indigo-500">
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
@@ -218,8 +218,8 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
   const PastMedicationsCard = useMemo(() => {
     if (!pastMedications) return null;
     return (
-      <Card className="bg-gray-50 shadow-lg rounded-lg overflow-hidden border border-gray-200">
-        <CardHeader className="bg-gray-500 text-white">
+      <Card className="bg-gradient-to-br from-gray-50 to-slate-100 shadow-lg rounded-lg overflow-hidden border border-gray-200">
+        <CardHeader className="bg-gradient-to-r from-gray-600 to-slate-600 text-white">
           <CardTitle>
             <Button
               onClick={() => setShowPastMedications(prev => !prev)}
@@ -239,7 +239,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
               <Accordion type="single" collapsible className="w-full">
                 {pastMedications.map((med) => (
                   <AccordionItem key={med.id} value={`past-med-${med.id}`} className="border-b border-gray-200 last:border-b-0">
-                    <AccordionTrigger className="hover:text-blue-600">{med.medicine}</AccordionTrigger>
+                    <AccordionTrigger className="hover:text-indigo-600">{med.medicine}</AccordionTrigger>
                     <AccordionContent>
                       <p className="text-sm text-gray-600">
                         Taken from {med.start_date} to {med.end_date}
@@ -260,17 +260,17 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
 
   if (!currentMedications || !pastMedications) {
     return (
-      <div className="flex justify-center items-center h-screen bg-white">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white py-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 py-8">
       <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <h1 className="text-4xl font-bold text-blue-800 mb-2">Medication Dashboard</h1>
-        <p className="text-sm text-blue-600 mb-6">Click on a medication name to view its monthly streak data. Use the download button to get the prescription.</p>
+        <h1 className="text-4xl font-bold text-indigo-800 mb-2">Medication Dashboard</h1>
+        <p className="text-sm text-indigo-600 mb-6">Click on a medication name to view its monthly streak data. Use the download button to get the prescription.</p>
         {CurrentMedicationsCard}
         {PastMedicationsCard}
       </div>
