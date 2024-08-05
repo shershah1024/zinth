@@ -271,7 +271,7 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
         .join(', ');
 
       // Create a simple summary message for the user
-      const summaryMessage = `Your health report from ${analysisResult.date} has been analyzed and stored successfully. We found results for the following components: ${analyzedComponents}. Please consult with your healthcare provider for a detailed interpretation of these results.`;
+      const summaryMessage = `I have saved it for you. You can see it here. https://zinth.vercel.app/health-records. Have a great day`;
 
       console.log('Summary message for user:', summaryMessage);
 
@@ -337,7 +337,7 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
       publicUrl 
     });
 
-    const response = `I have processed your ${classificationType.replace('_', ' ')}. Here's a brief summary:\n\n${analysis}\n\nFor more details, please check here ${resultUrl} in a few seconds.`;
+    const response = `I have processed your ${classificationType.replace('_', ' ')}. Please check here ${resultUrl} in a few seconds.`;
     await sendMessage(sender, response);
   } catch (error) {
     console.error(`Error handling ${message.type} message from ${sender}:`, error);
