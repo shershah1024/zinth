@@ -185,7 +185,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                     </Button>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mb-2">{med.before_after_food}</p>
+                <p className="text-sm text-gray-600 mb-2">{med.before_after_food + " food"}</p>
                 {renderCheckbox(med, format(new Date(), 'yyyy-MM-dd'))}
                 {expandedMedication === med.id && (
                   <motion.div 
