@@ -48,11 +48,10 @@ export async function POST(req: Request) {
 
       try {
         console.log('Sending update-adherence request with data:', {
-          prescription_id: prescriptionId,
+          prescriptionId: prescriptionId,
           date: reminderDate,
           timing,
-          taken,
-          medicine_name: medicationName
+          status: isTaken ? 'taken' : 'not_taken'
         });
 
         // Call the update-adherence route
@@ -62,11 +61,10 @@ export async function POST(req: Request) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            prescription_id: prescriptionId,
+            prescriptionId: prescriptionId,
             date: reminderDate,
             timing,
-            taken,
-            medicine_name: medicationName
+            status: isTaken ? 'taken' : 'not_taken'
           }),
         });
 
