@@ -1,8 +1,6 @@
-"use client"
-
 import React from 'react';
 import Link from 'next/link';
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { Activity } from 'lucide-react';
 import { Button } from "@/components/ui/button"
 
@@ -11,11 +9,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { data: session, status } = useSession();
-
-  const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' });
-  };
+  const { status } = useSession();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 via-white to-indigo-50">
@@ -34,20 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 <Link href="/dashboard">Dashboard</Link>
               </Button>
-              {status === "authenticated" ? (
-                <>
-                  <Button 
-                    variant="outline" 
-                    className="bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
-                    onClick={handleSignOut}
-                  >
-                    Sign Out
-                  </Button>
-                  <span className="text-gray-600">
-                    Welcome, {session.user?.name}
-                  </span>
-                </>
-              ) : (
+              {status !== "authenticated" && (
                 <Button 
                   variant="outline" 
                   className="bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
@@ -64,7 +45,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {children}
       </main>
       <footer className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-center py-6">
-        <p>&copy; 2024 Zinth. Synthesizing your health data for better living.</p>
+        <p>&copy; 2024 Zinth. The easiest peasiest way to track your health</p>
       </footer>
     </div>
   );
