@@ -9,6 +9,7 @@ const PATIENT_NUMBER = '919885842349';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
@@ -142,33 +143,23 @@ async function analyzeMedicalReport(text: string): Promise<AnalysisResult> {
   return toolUseContent.input;
 }
 
-async function storeResults(result: AnalysisResult, public_url: string = "None"): Promise<void>   {
-  console.log(`[Result Storage] Storing results`);
+async function storeResults(results: AnalysisResult, publicUrl: string): Promise<void> {
+  console.log(`[Result Storage] Storing results for URL: ${publicUrl}`);
+  const endpoint = '/api/store/test-results';
 
-  const test_id = uuidv4();
-  const dataToInsert = result.components.map(component => ({
-    patient_number: "919885842349",
-    test_id: test_id,
-    component: component.component,
-    unit: component.unit,
-    number_value: typeof component.value === 'number' ? component.value : null,
-    text_value: typeof component.value === 'string' ? component.value : null,
-    normal_range_min: component.normal_range_min,
-    normal_range_max: component.normal_range_max,
-    date: result.date,
-    normal_range_text: component.normal_range_text
-  }));
-
-  const { data, error } = await supabase
-    .from('medical_test_results')
-    .insert(dataToInsert);
-
-  if (error) {
-    console.error('[Result Storage] Failed to store results:', error);
-    throw new Error(`Storage failed: ${error.message}`);
+  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ results, publicUrl })
+  });
+  
+  if (!storeResponse.ok) {
+    const errorText = await storeResponse.text();
+    console.error(`[Result Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
+    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
   }
 
-  console.log(`[Result Storage] Successfully stored ${dataToInsert.length} results`);
+  console.log(`[Result Storage] Successfully stored results`);
 }
 
 export async function POST(request: NextRequest) {
@@ -188,7 +179,8 @@ export async function POST(request: NextRequest) {
     console.log('Analysis Result:', JSON.stringify(analysisResult, null, 2));
 
     // Store the results
-    await storeResults(analysisResult);
+    const public_url="None"
+    await storeResults(analysisResult, public_url);
 
     return NextResponse.json({ 
       message: 'Medical report analyzed and stored successfully', 
