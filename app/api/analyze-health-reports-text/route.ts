@@ -33,17 +33,15 @@ interface TestComponent {
 }
 
 interface AnalysisResult {
-  date: string;
   components: TestComponent[];
-  imaging_description?: string;
-  descriptive_name?: string;
+  date: string;
 }
 
 interface AnthropicResponseContent {
   type: string;
   id?: string;
   name?: string;
-  input?: AnalysisResult | AnalysisResult[];
+  input?: AnalysisResult;
 }
 
 interface AnthropicResponse {
@@ -51,7 +49,7 @@ interface AnthropicResponse {
 }
 
 interface RequestBody {
-  texts: string[];
+  text: string;
 }
 
 function getTodayDate(): string {
@@ -60,7 +58,7 @@ function getTodayDate(): string {
 
 const todayDate = getTodayDate();
 
-async function analyzeMedicalReports(texts: string[]): Promise<AnalysisResult[]> {
+async function analyzeMedicalReport(text: string): Promise<AnalysisResult> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-Key': ANTHROPIC_API_KEY as string,
@@ -78,7 +76,7 @@ async function analyzeMedicalReports(texts: string[]): Promise<AnalysisResult[]>
           items: {
             type: "object",
             properties: {
-              component: { type: "string", description: "Name of the test component. If it is part of the urine analysis preface the name of the component with 'Urine Test'" },
+              component: { type: "string", description: "Name of the test component" },
               value: { 
                 oneOf: [
                   { type: "number" },
@@ -105,14 +103,8 @@ async function analyzeMedicalReports(texts: string[]): Promise<AnalysisResult[]>
   }];
 
   const content = [
-    ...texts.map(text => ({
-      type: "text",
-      text: text
-    })),
-    {
-      type: "text",
-      text: `Analyze these ${texts.length} medical test report texts. Extract all test components with their names, measurements, units, and normal ranges. Also provide the test date for each report.`
-    }
+    { type: "text", text: text },
+    { type: "text", text: "Analyze this medical test report text. Extract all test components with their names, measurements, units, and normal ranges. Also provide the test date for the report." }
   ];
 
   const body = {
@@ -147,27 +139,24 @@ async function analyzeMedicalReports(texts: string[]): Promise<AnalysisResult[]>
 
   console.log('API Response:', JSON.stringify(toolUseContent, null, 2));
 
-  // Handle both single result and array of results
-  return Array.isArray(toolUseContent.input) ? toolUseContent.input : [toolUseContent.input];
+  return toolUseContent.input;
 }
 
-async function storeResults(results: AnalysisResult[]): Promise<void> {
+async function storeResults(result: AnalysisResult): Promise<void> {
   console.log(`[Result Storage] Storing results`);
 
-  const dataToInsert = results.flatMap(result => 
-    result.components.map(component => ({
-      patient_number: PATIENT_NUMBER,
-      test_id: uuidv4(),
-      component: component.component,
-      value: component.value,
-      unit: component.unit,
-      normal_range_min: component.normal_range_min,
-      normal_range_max: component.normal_range_max,
-      normal_range_text: component.normal_range_text,
-      date: result.date,
-      public_url: "None", // Set to null for text-based reports
-    }))
-  );
+  const dataToInsert = result.components.map(component => ({
+    patient_number: PATIENT_NUMBER,
+    test_id: uuidv4(),
+    component: component.component,
+    value: component.value,
+    unit: component.unit,
+    normal_range_min: component.normal_range_min,
+    normal_range_max: component.normal_range_max,
+    normal_range_text: component.normal_range_text,
+    date: result.date,
+    public_url: "None", // Set to null for text-based reports
+  }));
 
   const { data, error } = await supabase
     .from('medical_test_results')
@@ -186,28 +175,28 @@ export async function POST(request: NextRequest) {
     const requestBody: RequestBody = await request.json();
     console.log('Received request body keys:', Object.keys(requestBody));
 
-    if (!requestBody.texts || requestBody.texts.length === 0) {
-      console.error('Invalid input: texts are missing or empty');
-      return NextResponse.json({ error: 'At least one text input is required' }, { status: 400 });
+    if (!requestBody.text || requestBody.text.trim().length === 0) {
+      console.error('Invalid input: text is missing or empty');
+      return NextResponse.json({ error: 'Text input is required' }, { status: 400 });
     }
 
-    console.log(`Processing ${requestBody.texts.length} texts...`);
+    console.log(`Processing medical report text...`);
 
-    const analysisResults = await analyzeMedicalReports(requestBody.texts);
+    const analysisResult = await analyzeMedicalReport(requestBody.text);
 
-    console.log('Analysis Results:', JSON.stringify(analysisResults, null, 2));
+    console.log('Analysis Result:', JSON.stringify(analysisResult, null, 2));
 
     // Store the results
-    await storeResults(analysisResults);
+    await storeResults(analysisResult);
 
     return NextResponse.json({ 
-      message: 'Medical reports analyzed and stored successfully', 
-      results: analysisResults 
+      message: 'Medical report analyzed and stored successfully', 
+      result: analysisResult 
     });
   } catch (error) {
-    console.error('Error processing medical reports:', error);
+    console.error('Error processing medical report:', error);
     return NextResponse.json({ 
-      error: 'Error processing medical reports', 
+      error: 'Error processing medical report', 
       details: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
