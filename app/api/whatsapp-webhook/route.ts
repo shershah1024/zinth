@@ -19,7 +19,6 @@ const IMAGING_RESULTS_VIEW_URL = 'https://zinth.vercel.app/imaging-results';
 const PRESCRIPTION_VIEW_URL = 'https://zinth.vercel.app/prescriptions';
 const HEALTH_REPORT_TEXT_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-health-reports-text`;
 
-
 console.log("next public base url is", NEXT_PUBLIC_BASE_URL);
 
 interface AnalysisResult {
@@ -234,19 +233,30 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
       const response = await fetch(HEALTH_REPORT_TEXT_ANALYSIS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message.text.body }),
+        body: JSON.stringify({ texts: [message.text.body] }),
       });
 
       if (!response.ok) {
-        throw new Error(`Health report analysis failed with status ${response.status}`);
+        const errorText = await response.text();
+        console.error(`Health report analysis failed - Status: ${response.status}, Error: ${errorText}`);
+        throw new Error(`Health report analysis failed: ${errorText}`);
       }
 
       const result = await response.json();
+      console.log('Health report analysis result:', result);
       
-      // Assuming the result contains a 'data' field with the type of health data
-      const dataType = result.data || 'health data';
+      // Assuming the result contains a 'results' array with analyzed components
+      const analysisResults = result.results;
+      if (!analysisResults || analysisResults.length === 0) {
+        throw new Error('No analysis results found');
+      }
+
+      // Extract the names of the components that were analyzed
+      const analyzedComponents = analysisResults[0].components
+        .map((component: any) => component.component)
+        .join(', ');
       
-      const responseMessage = `I have saved your "${dataType}". You can view your health records at https://zinth.vercel.app/health-records`;
+      const responseMessage = `I have saved your health data including ${analyzedComponents}. You can view your health records at https://zinth.vercel.app/health-records`;
       await sendMessage(sender, responseMessage);
     } catch (error) {
       console.error('Error processing text message:', error);
