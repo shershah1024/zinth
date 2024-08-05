@@ -1,5 +1,3 @@
-// components/MedicationDashboard.tsx
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pill, Download } from 'lucide-react';
@@ -8,20 +6,42 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { motion } from 'framer-motion';
-import { 
-  StreakMedication, 
-  PastMedication, 
-  PrescriptionStreakTiming, 
-  PrescriptionTimingValue, 
-  StreakValue,
-  PrescriptionTimings,
-  MedicationDashboardProps
-} from '@/types/medicationTypes';
 
-function convertStreakToBoolean(value: StreakValue): boolean | null {
-  if (value === 'TRUE') return true;
-  if (value === 'FALSE') return false;
-  return null;
+// Type definitions (unchanged)
+interface HistoryRecord {
+  date: string;
+  value: StreakTimingStatus;
+}
+
+interface StreakMedication {
+  id: number;
+  medicine: string;
+  before_after_food: string;
+  timings: Partial<Record<StreakTiming, TimingValue>>;
+  streak: Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>;
+  public_url?: string;
+}
+
+interface StreakPastMedication {
+  id: number;
+  medicine: string;
+  start_date: string;
+  end_date: string;
+  timings: Partial<Record<StreakTiming, TimingValue>>;
+}
+
+type StreakTiming = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+type TimingValue = 'true' | 'false';
+
+enum StreakTimingStatus {
+  Taken = 'Taken',
+  NotTaken = 'NotTaken'
+}
+
+interface MedicationDashboardProps {
+  currentMedications: StreakMedication[] | null;
+  pastMedications: StreakPastMedication[] | null;
+  onUpdateAdherence: (medicationId: number, date: string, timing: StreakTiming, taken: boolean) => void;
 }
 
 const MedicationDashboard: React.FC<MedicationDashboardProps> = ({ 
@@ -36,8 +56,8 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
   const handlePrevMonth = useCallback(() => setCurrentMonth(prev => subMonths(prev, 1)), []);
   const handleNextMonth = useCallback(() => setCurrentMonth(prev => addMonths(prev, 1)), []);
 
-  const getActiveTimings = useCallback((timings: PrescriptionTimings): PrescriptionStreakTiming[] => {
-    return (Object.entries(timings) as [PrescriptionStreakTiming, PrescriptionTimingValue][])
+  const getActiveTimings = useCallback((timings: Partial<Record<StreakTiming, TimingValue>>): StreakTiming[] => {
+    return (Object.entries(timings) as [StreakTiming, TimingValue][])
       .filter(([_, value]) => value === 'true')
       .map(([timing, _]) => timing);
   }, []);
@@ -62,18 +82,13 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
     return (
       <div className="flex flex-wrap gap-4">
         {activeTimings.map((timing) => {
-          const lowercaseTiming = timing.toLowerCase() as Lowercase<PrescriptionStreakTiming>;
-          const streakValue = convertStreakToBoolean(medication.streak[date]?.[lowercaseTiming]);
+          const isChecked = medication.streak[date]?.[timing] === StreakTimingStatus.Taken;
           return (
             <div key={timing} className="flex items-center space-x-2">
               <Checkbox
                 id={`${medication.id}-${timing}`}
-                checked={streakValue ?? false}
-                onCheckedChange={(checked) => {
-                  if (typeof checked === 'boolean') {
-                    onUpdateAdherence(medication.id, date, timing, checked);
-                  }
-                }}
+                checked={isChecked}
+                onCheckedChange={() => onUpdateAdherence(medication.id, date, timing, !isChecked)}
                 className="text-blue-500 border-blue-500"
               />
               <label
@@ -108,16 +123,15 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
               <div className="text-sm text-gray-600">{format(day, 'd')}</div>
               <div className="flex flex-col gap-1 mt-1">
                 {activeTimings.map((timing) => {
-                  const lowercaseTiming = timing.toLowerCase() as Lowercase<PrescriptionStreakTiming>;
-                  const streakValue = convertStreakToBoolean(medication.streak[date]?.[lowercaseTiming]);
-                  let bgColor = 'bg-gray-200'; // Default color for null/undefined
-                  if (streakValue === true) bgColor = 'bg-blue-500';
-                  if (streakValue === false) bgColor = 'bg-red-400';
+                  const status = medication.streak[date]?.[timing];
+                  let bgColor = 'bg-gray-200';
+                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-blue-500';
+                  if (status === StreakTimingStatus.NotTaken) bgColor = 'bg-red-400';
                   return (
                     <div
                       key={`${date}-${timing}`}
                       className={`w-3 h-3 rounded-full ${bgColor} transition-all duration-300 ease-in-out`}
-                      title={`${timing}: ${streakValue === null ? 'Not marked' : streakValue ? 'Taken' : 'Not taken'}`}
+                      title={`${timing}: ${status === StreakTimingStatus.Taken ? 'Taken' : 'Not taken'}`}
                     />
                   );
                 })}
@@ -171,7 +185,7 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
                     </Button>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mb-2">{med.before_after_food + " food"}</p>
+                <p className="text-sm text-gray-600 mb-2">{med.before_after_food}</p>
                 {renderCheckbox(med, format(new Date(), 'yyyy-MM-dd'))}
                 {expandedMedication === med.id && (
                   <motion.div 

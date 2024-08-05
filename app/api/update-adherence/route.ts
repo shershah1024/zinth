@@ -6,35 +6,27 @@ import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
 );
 
 export async function POST(req: Request) {
   try {
-    const { patientNumber, medicationName, date, timing, taken } = await req.json();
+    const { prescriptionId, date, timing, taken } = await req.json();
 
-    if (!patientNumber || !medicationName || !date || !timing || taken === undefined) {
-      throw new Error('Missing required fields');
-    }
-
-    // Check if the prescription is current
+    // First, fetch the medicine name from the prescriptions table
     const { data: prescriptionData, error: prescriptionError } = await supabase
       .from('prescriptions')
-      .select('id')
-      .eq('patient_number', patientNumber)
-      .eq('medicine', medicationName)
-      .lte('start_date', date)
-      .gte('end_date', date)
+      .select('medicine')
+      .eq('id', prescriptionId)
       .single();
 
     if (prescriptionError) throw prescriptionError;
-    if (!prescriptionData) {
-      return NextResponse.json({ error: 'Prescription not found or not current' }, { status: 400 });
-    }
+    if (!prescriptionData) throw new Error('Prescription not found');
 
-    const prescriptionId = prescriptionData.id;
+    const medicineName = prescriptionData.medicine;
 
     // Check if an entry already exists
-    const { data: existingEntry, error: selectError } = await supabase
+    let { data: existingEntry, error: selectError } = await supabase
       .from('medication_streak')
       .select('*')
       .eq('prescription_id', prescriptionId)
@@ -64,7 +56,7 @@ export async function POST(req: Request) {
         .from('medication_streak')
         .insert({
           prescription_id: prescriptionId,
-          medicine_name: medicationName,
+          medicine_name: medicineName,
           date: date,
           [timing]: taken
         })
@@ -74,15 +66,21 @@ export async function POST(req: Request) {
       result = data;
     }
 
+    // Fetch the updated streak data for the medication
+    const { data: updatedStreak, error: streakError } = await supabase
+      .from('medication_streak')
+      .select('*')
+      .eq('prescription_id', prescriptionId);
+
+    if (streakError) throw streakError;
+
     return NextResponse.json({ 
       success: true, 
-      data: result
+      data: result,
+      updatedStreak: updatedStreak
     });
   } catch (error) {
     console.error('Error updating adherence:', error);
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update adherence' }, { status: 500 });
   }
 }
