@@ -173,24 +173,40 @@ async function sendTwoButtonMessage(
 
 async function sendReminderMessage(patientNumber: string, medicine: string, timing: string, prescriptionId: number) {
   const currentDate = getCurrentDate();
-  console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}, timing: ${timing}, date: ${currentDate}, prescriptionId: ${prescriptionId}`);
-  
-  const trimmedPatientNumber = patientNumber.trim();
-  const trimmedMedicine = medicine.trim().replace(/\s+/g, '_');
-  const trimmedTiming = timing.trim();
-  const trimmedCurrentDate = currentDate.trim();
-  
-  const message: TwoButtonMessage = {
-    bodyText: `Have you taken your ${timing} dose of ${medicine}?`,
-    button1: {
-      id: `yes||taken||${trimmedPatientNumber}||${trimmedMedicine}||${trimmedTiming}||${trimmedCurrentDate}||${prescriptionId}`,
-      title: "Yes"
-    },
-    button2: {
-      id: `no||not_taken||${trimmedPatientNumber}||${trimmedMedicine}||${trimmedTiming}||${trimmedCurrentDate}||${prescriptionId}`,
-      title: "No"
-    }
-  };
+console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}, timing: ${timing}, date: ${currentDate}, prescriptionId: ${prescriptionId}`);
+
+const trimmedPatientNumber = patientNumber.trim();
+const trimmedMedicine = medicine.trim().replace(/\s+/g, '_');
+const trimmedTiming = timing.trim();
+const trimmedCurrentDate = currentDate.trim();
+
+const message: TwoButtonMessage = {
+  bodyText: `Have you taken your ${timing} dose of ${medicine}?`,
+  button1: {
+    id: JSON.stringify({
+      action: "true",
+      taken: "taken",
+      patientNumber: trimmedPatientNumber,
+      medicationName: trimmedMedicine,
+      timing: trimmedTiming,
+      reminderDate: trimmedCurrentDate,
+      prescriptionId: prescriptionId
+    }),
+    title: "Yes"
+  },
+  button2: {
+    id: JSON.stringify({
+      action: "false",
+      taken: "not_taken",
+      patientNumber: trimmedPatientNumber,
+      medicationName: trimmedMedicine,
+      timing: trimmedTiming,
+      reminderDate: trimmedCurrentDate,
+      prescriptionId: prescriptionId
+    }),
+    title: "No"
+  }
+};
 
   try {
     console.log(`Sending WhatsApp message to ${patientNumber}`);
