@@ -514,8 +514,21 @@ async function handleInteractiveMessage(message: WhatsAppMessage, sender: string
         const result = await response.json();
         console.log('Adherence update result:', result);
 
-        // Send a friendly, encouraging confirmation message
-        await sendMessage(sender, `Great job taking your ${medicationName.replace(/_/g, ' ')} ${timing} dose! 🎉 Your commitment to your health is awesome. Keep up the good work! 💪`);
+        // Process the adherence update result
+        if (result.success) {
+          const streak = result.updatedStreak ? result.updatedStreak.length : 0;
+          let message = `Great job taking your ${medicationName.replace(/_/g, ' ')} ${timing} dose! 🎉`;
+          
+          if (streak > 1) {
+            message += ` You're on a ${streak}-day streak. Keep up the fantastic work! 💪`;
+          } else {
+            message += ` Your commitment to your health is awesome. Keep it up! 💪`;
+          }
+
+          await sendMessage(sender, message);
+        } else {
+          throw new Error('Adherence update was not successful');
+        }
       } catch (error) {
         console.error('Error updating adherence:', error);
         await sendMessage(sender, "Oops! We couldn't record your medication right now. Don't worry, please try again later or contact support if this persists.");
@@ -524,7 +537,7 @@ async function handleInteractiveMessage(message: WhatsAppMessage, sender: string
       // Handle the case when the user hasn't taken their medication
       await sendMessage(sender, `I understand you haven't taken your ${medicationName.replace(/_/g, ' ')} ${timing} dose yet. Remember, it's important for your health. Is there anything preventing you from taking it?`);
     } else {
-      // Handle other button actions if necessary
+      // Handle unexpected button actions
       await sendMessage(sender, "I'm not sure how to handle that response. Could you please clarify or try again?");
     }
   } else {
