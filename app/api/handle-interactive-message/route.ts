@@ -17,14 +17,14 @@ export async function POST(req: Request) {
       console.log('Processing button reply:', message.interactive.button_reply);
       
       const { id, title } = message.interactive.button_reply;
-      
-      // Parse the button ID to extract information
-      const [action, taken, prescriptionId, ...medicationNameParts] = id.split('||');
-      const timing = medicationNameParts.pop(); // The last part is the timing
-      const reminderDate = medicationNameParts.pop(); // The second-to-last part is the reminder date
-      const medicationName = medicationNameParts.join(' '); // Join the remaining parts to form the medication name
-      
-      console.log(`Parsed data: action=${action}, taken=${taken}, prescriptionId=${prescriptionId}, medicationName=${medicationName}, timing=${timing}, reminderDate=${reminderDate}`);
+
+// Parse the button ID to extract information
+const parsedData = JSON.parse(id);
+
+const { action, taken, patientNumber, medicationName, timing, reminderDate, prescriptionId } = parsedData;
+
+console.log(`Parsed data: action=${action}, taken=${taken}, patientNumber=${patientNumber}, prescriptionId=${prescriptionId}, medicationName=${medicationName}, timing=${timing}, reminderDate=${reminderDate}`);
+
 
       // Verify that the prescription is current and matches the medication
       const { data: prescription, error: prescriptionError } = await supabase
