@@ -1,13 +1,9 @@
-//app/api/analyze-health-reports
-
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const MAX_BATCH_SIZE = 3;
-
 
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
@@ -48,12 +44,13 @@ interface AnthropicResponse {
 }
 
 interface RequestBody {
-  images: string[];
-  mimeType: string;
+  images?: string[];
+  texts?: string[];
+  mimeType?: string;
   publicUrl: string;
 }
 
-async function analyzeMedicalReportBatch(images: string[], mimeType: string): Promise<AnalysisResult[]> {
+async function analyzeMedicalReportBatch(images: string[] = [], texts: string[] = [], mimeType?: string): Promise<AnalysisResult[]> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-Key': ANTHROPIC_API_KEY as string,
@@ -97,14 +94,24 @@ async function analyzeMedicalReportBatch(images: string[], mimeType: string): Pr
     }
   }];
 
-  const imageContent = images.map(base64Image => ({
-    type: "image",
-    source: {
-      type: "base64",
-      media_type: mimeType,
-      data: base64Image
+  const content = [
+    ...images.map(base64Image => ({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: mimeType,
+        data: base64Image
+      }
+    })),
+    ...texts.map(text => ({
+      type: "text",
+      text: text
+    })),
+    {
+      type: "text",
+      text: `Analyze these ${images.length} medical test report images and ${texts.length} textual reports. Extract all test components with their names, measurements, units, and normal ranges. Also provide the test date for each report. If there are imaging results, include a description.`
     }
-  }));
+  ];
 
   const body = {
     model: "claude-3-5-sonnet-20240620",
@@ -114,13 +121,7 @@ async function analyzeMedicalReportBatch(images: string[], mimeType: string): Pr
     messages: [
       {
         role: "user",
-        content: [
-          ...imageContent,
-          {
-            type: "text",
-            text: `Analyze these ${images.length} medical test reports and extract all test components with their names, measurements, units, and normal ranges. Also provide the test date for each report. If there are imaging results, include a description. Provide a descriptive name for each report. Provide separate analysis for each image.`
-          }
-        ]
+        content: content
       }
     ]
   };
@@ -176,14 +177,14 @@ export async function POST(request: NextRequest) {
     const requestBody: RequestBody = await request.json();
     console.log('Received request body keys:', Object.keys(requestBody));
 
-    if (!requestBody.images || !Array.isArray(requestBody.images) || requestBody.images.length === 0) {
-      console.error('Invalid input: images are missing, not an array, or empty');
-      return NextResponse.json({ error: 'At least one image is required' }, { status: 400 });
+    if ((!requestBody.images || requestBody.images.length === 0) && (!requestBody.texts || requestBody.texts.length === 0)) {
+      console.error('Invalid input: both images and texts are missing or empty');
+      return NextResponse.json({ error: 'At least one image or text input is required' }, { status: 400 });
     }
 
-    if (!requestBody.mimeType) {
-      console.error('Invalid input: mimeType is missing');
-      return NextResponse.json({ error: 'mimeType is required' }, { status: 400 });
+    if (requestBody.images && requestBody.images.length > 0 && !requestBody.mimeType) {
+      console.error('Invalid input: mimeType is missing for image input');
+      return NextResponse.json({ error: 'mimeType is required when providing images' }, { status: 400 });
     }
 
     if (!requestBody.publicUrl) {
@@ -191,12 +192,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
-    console.log(`Processing ${requestBody.images.length} images in batches of up to ${MAX_BATCH_SIZE}...`);
+    const totalInputs = (requestBody.images?.length || 0) + (requestBody.texts?.length || 0);
+    console.log(`Processing ${totalInputs} inputs in batches of up to ${MAX_BATCH_SIZE}...`);
 
     const analysisResults: AnalysisResult[] = [];
-    for (let i = 0; i < requestBody.images.length; i += MAX_BATCH_SIZE) {
-      const batch = requestBody.images.slice(i, i + MAX_BATCH_SIZE);
-      const batchResults = await analyzeMedicalReportBatch(batch, requestBody.mimeType);
+    for (let i = 0; i < totalInputs; i += MAX_BATCH_SIZE) {
+      const imageBatch = requestBody.images?.slice(i, i + MAX_BATCH_SIZE) || [];
+      const textBatch = requestBody.texts?.slice(i, i + MAX_BATCH_SIZE) || [];
+      const batchResults = await analyzeMedicalReportBatch(imageBatch, textBatch, requestBody.mimeType);
       analysisResults.push(...batchResults);
     }
 
