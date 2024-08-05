@@ -15,7 +15,6 @@ const PRESCRIPTION_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-prescript
 const HEALTH_RECORDS_VIEW_URL = 'https://zinth.vercel.app/health-records';
 const MAX_BATCH_SIZE = 3;
 const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-type`;
-const UPLOAD_FILE_ENDPOINT = `${BASE_URL}/api/upload-file-supabase`;
 const IMAGING_RESULTS_VIEW_URL = 'https://zinth.vercel.app/imaging-results';
 const PRESCRIPTION_VIEW_URL = 'https://zinth.vercel.app/prescriptions';
 
@@ -279,9 +278,6 @@ async function analyzePrescription(base64Images: string[], mimeType: string, pub
 async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
   console.log(`Received ${message.type} message from ${sender}:`, message[message.type as 'image' | 'document']?.id);
 
-  // Send an intermediary message
-  await sendMessage(sender, `We've received your ${message.type}. We're analyzing it now and will send you the results soon.`);
-
   try {
     const mediaInfo = message[message.type as 'image' | 'document'];
     if (!mediaInfo) {
@@ -324,30 +320,6 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
     const classificationType = await classifyDocument(base64Images[0], mimeType);
     console.log(`Document classified as: ${classificationType}`);
 
-    let analysisResult: string;
-    console.log(`Starting analysis for ${classificationType}`);
-    console.log(`Analysis input - base64Images length: ${base64Images.length}, mimeType: ${mimeType}`);
-
-    switch (classificationType) {
-      case 'imaging_result':
-        analysisResult = await analyzeImagingResult(base64Images, mimeType, publicUrl);
-        break;
-      case 'health_record':
-        analysisResult = await analyzeHealthReport(base64Images, mimeType, publicUrl);
-        break;
-      case 'prescription':
-        analysisResult = await analyzePrescription(base64Images, mimeType, publicUrl);
-        break;
-      default:
-        throw new Error(`Unexpected document classification: ${classificationType}`);
-    }
-
-    console.log(`Analysis completed. Result: ${analysisResult}`);
-
-    // Add a 60-second delay
-    console.log("Waiting for 60 seconds before sending the final response...");
-    await delay(60000);
-
     let resultUrl: string;
     switch (classificationType) {
       case 'imaging_result':
@@ -363,10 +335,8 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
         resultUrl = 'https://zinth.vercel.app'; // Default URL
     }
 
-    // Construct a single, consolidated response
-    const finalResponse = `Analysis complete for your ${classificationType}.\n\n` +
-                          `Summary: ${analysisResult}\n\n` +
-                          `You can view the detailed results here: ${resultUrl}`;
+    // Construct the new response
+    const finalResponse = `I have received your ${classificationType.replace('_', ' ')}. Please check here ${resultUrl} in a few seconds, and you should be able to see it.`;
 
     // Send the final response
     await sendMessage(sender, finalResponse);
