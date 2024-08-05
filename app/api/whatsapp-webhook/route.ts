@@ -17,6 +17,8 @@ const MAX_BATCH_SIZE = 3;
 const DOCUMENT_CLASSIFICATION_URL = `${NEXT_PUBLIC_BASE_URL}/api/find-document-type`;
 const IMAGING_RESULTS_VIEW_URL = 'https://zinth.vercel.app/imaging-results';
 const PRESCRIPTION_VIEW_URL = 'https://zinth.vercel.app/prescriptions';
+const HEALTH_REPORT_TEXT_ANALYSIS_URL = `${NEXT_PUBLIC_BASE_URL}/api/analyze-health-reports-text`;
+
 
 console.log("next public base url is", NEXT_PUBLIC_BASE_URL);
 
@@ -229,10 +231,23 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
     console.log('Received text message:', message.text.body);
     
     try {
-      const { classificationType, analysis, resultUrl } = await processAndAnalyzeDocument({ text: message.text.body });
+      const response = await fetch(HEALTH_REPORT_TEXT_ANALYSIS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message.text.body }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Health report analysis failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
       
-      const response = `I have processed your ${classificationType.replace('_', ' ')}. Here's a brief summary:\n\n${analysis}\n\nFor more details, please check here ${resultUrl} in a few seconds.`;
-      await sendMessage(sender, response);
+      // Assuming the result contains a 'data' field with the type of health data
+      const dataType = result.data || 'health data';
+      
+      const responseMessage = `I have saved your "${dataType}". You can view your health records at https://zinth.vercel.app/health-records`;
+      await sendMessage(sender, responseMessage);
     } catch (error) {
       console.error('Error processing text message:', error);
       await sendMessage(sender, `Sorry, there was an error processing your message: ${error instanceof Error ? error.message : 'Unknown error'}`);
