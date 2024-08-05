@@ -18,12 +18,11 @@ export async function POST(req: Request) {
     // Convert timing to lowercase
     const normalizedTiming = timing.toLowerCase();
 
-    // Convert status to boolean
-    const taken = status === 'Taken';
+    // Keep status as is, don't convert to boolean
+    const medicationStatus = status;
 
     console.log("normalized timing is", normalizedTiming);
-    console.log("status is", status);
-    console.log("taken is", taken);
+    console.log("medication status is", medicationStatus);
 
     // First, fetch the medicine name from the prescriptions table
     const { data: prescriptionData, error: prescriptionError } = await supabase
@@ -55,7 +54,7 @@ export async function POST(req: Request) {
       // If entry exists, update it 
       const { data, error: updateError } = await supabase
         .from('medication_streak')
-        .update({ [normalizedTiming]: taken })
+        .update({ [normalizedTiming]: medicationStatus })
         .eq('prescription_id', prescriptionId)
         .eq('date', date)
         .select();
@@ -70,7 +69,7 @@ export async function POST(req: Request) {
           prescription_id: prescriptionId,
           medicine_name: medicineName,
           date: date,
-          [normalizedTiming]: taken
+          [normalizedTiming]: medicationStatus
         })
         .select();
       
