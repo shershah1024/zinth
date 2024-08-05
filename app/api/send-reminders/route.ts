@@ -25,7 +25,7 @@ function getCurrentTimeOfDay(): string | null {
   
   if (patientHour === 7) return 'morning';
   if (patientHour === 13) return 'afternoon';
-  if (patientHour === 17) return 'evening';
+  if (patientHour === 16.25) return 'evening';
   if (patientHour === 19) return 'night';
   
   console.log(`Not a medication reminder time. Current hour: ${patientHour}`);
