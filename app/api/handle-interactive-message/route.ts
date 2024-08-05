@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
       try {
         console.log('Sending update-adherence request with data:', {
-          prescription_id: prescriptionId,
+          prescription_id: parseInt(prescriptionId, 10),
           date: reminderDate,
           timing,
           taken,
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            prescription_id: prescriptionId,
+            prescription_id: parseInt(prescriptionId, 10),
             date: reminderDate,
             timing,
             taken,
