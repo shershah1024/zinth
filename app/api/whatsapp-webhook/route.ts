@@ -233,7 +233,7 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
       const response = await fetch(HEALTH_REPORT_TEXT_ANALYSIS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texts: [message.text.body] }),
+        body: JSON.stringify({ text: message.text.body }),
       });
 
       if (!response.ok) {
