@@ -18,20 +18,9 @@ interface Medication {
 const TIMEZONE_OFFSET = 5.5; // GMT+5:30
 
 function getCurrentTimeOfDay(): string | null {
-  const now = new Date();
-  const patientHour = (now.getUTCHours() + TIMEZONE_OFFSET) % 24;
-  
-  console.log(`Current UTC time: ${now.toISOString()}, Patient time (GMT+5:30): ${patientHour}:${now.getUTCMinutes()}`);
-  
-  if (patientHour === 7) return 'morning';
-  if (patientHour === 13) return 'afternoon';
-  if (patientHour === 16.25) return 'evening';
-  if (patientHour === 19) return 'night';
-  
-  console.log(`Not a medication reminder time. Current hour: ${patientHour}`);
-  return null;
+    // Temporarily force 'morning' for testing
+    return 'morning';
 }
-
 async function fetchUniquePatients(timeOfDay: string): Promise<Patient[]> {
   console.log(`Fetching unique patients for ${timeOfDay}`);
   const currentDate = new Date().toISOString().split('T')[0];
