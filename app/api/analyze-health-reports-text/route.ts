@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
-const MAX_BATCH_SIZE = 3;
 const PATIENT_NUMBER = '919885842349';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,8 +19,6 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-
 
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
@@ -46,7 +43,7 @@ interface AnthropicResponseContent {
   type: string;
   id?: string;
   name?: string;
-  input?: AnalysisResult;
+  input?: AnalysisResult | AnalysisResult[];
 }
 
 interface AnthropicResponse {
@@ -63,7 +60,7 @@ function getTodayDate(): string {
 
 const todayDate = getTodayDate();
 
-async function analyzeMedicalReportBatch(texts: string[]): Promise<AnalysisResult[]> {
+async function analyzeMedicalReports(texts: string[]): Promise<AnalysisResult[]> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-Key': ANTHROPIC_API_KEY as string,
@@ -94,7 +91,7 @@ async function analyzeMedicalReportBatch(texts: string[]): Promise<AnalysisResul
               normal_range_max: { type: "number", description: "Maximum of normal range" },
               normal_range_text: { type: "string", description: "Textual description of normal range" }
             },
-            required: ["component"]
+            required: ["component", "value", "unit"]
           },
           description: "List of test components and their details"
         },
@@ -150,72 +147,38 @@ async function analyzeMedicalReportBatch(texts: string[]): Promise<AnalysisResul
 
   console.log('API Response:', JSON.stringify(toolUseContent, null, 2));
 
-  // Handle the case where a single result is returned
-  if (!Array.isArray(toolUseContent.input)) {
-    return [toolUseContent.input];
-  }
-
-  return toolUseContent.input;
+  // Handle both single result and array of results
+  return Array.isArray(toolUseContent.input) ? toolUseContent.input : [toolUseContent.input];
 }
 
-async function uploadToSupabase(results: AnalysisResult[], patientNumber: string) {
-  console.log('Starting uploadToSupabase function');
-  console.log('Results to be inserted:', JSON.stringify(results, null, 2));
-  console.log('Patient Number:', patientNumber);
+async function storeResults(results: AnalysisResult[]): Promise<void> {
+  console.log(`[Result Storage] Storing results`);
 
-  const dataToInsert = results.map(result => {
-    const test_id = uuidv4(); // Generate a UUID for each test
-    console.log(`Generated test_id: ${test_id}`);
-    return result.components.map(component => ({
-      patient_number: '919885842349', // Replace with actual patient number logic
-        test_id: crypto.randomUUID(),
-        component: component.component,
-        unit: component.unit,
-        number_value: typeof component.value === 'number' ? component.value : null,
-        text_value: typeof component.value === 'string' ? component.value : null,
-        normal_range_min: component.normal_range_min,
-        normal_range_max: component.normal_range_max,
-        date: result.date,
-        public_url: "none",
-        normal_range_text: component.normal_range_text,
-    }));
-  });
+  const dataToInsert = results.flatMap(result => 
+    result.components.map(component => ({
+      patient_number: PATIENT_NUMBER,
+      test_id: uuidv4(),
+      component: component.component,
+      value: component.value,
+      unit: component.unit,
+      normal_range_min: component.normal_range_min,
+      normal_range_max: component.normal_range_max,
+      normal_range_text: component.normal_range_text,
+      date: result.date,
+      public_url: null, // Set to null for text-based reports
+    }))
+  );
 
-  console.log('Data prepared for insertion:', JSON.stringify(dataToInsert, null, 2));
+  const { data, error } = await supabase
+    .from('medical_test_results')
+    .insert(dataToInsert);
 
-  try {
-    const { data, error } = await supabase
-      .from('medical_test_results')
-      .insert(dataToInsert);
-
-    if (error) {
-      console.error('Error inserting data into Supabase:');
-      console.error('Error object:', error);
-      console.error('Error message:', error.message);
-      console.error('Error details:', error.details);
-      console.error('Error hint:', error.hint);
-      console.error('Error code:', error.code);
-      
-      // Log all properties of the error object
-      for (const [key, value] of Object.entries(error)) {
-        console.error(`${key}:`, value);
-      }
-
-      throw error;
-    }
-
-    console.log('Data successfully inserted into Supabase:', JSON.stringify(data, null, 2));
-    return data;
-  } catch (e) {
-    console.error('Caught exception during Supabase insertion:');
-    console.error(e);
-    if (e instanceof Error) {
-      console.error('Error name:', e.name);
-      console.error('Error message:', e.message);
-      console.error('Error stack:', e.stack);
-    }
-    throw e;
+  if (error) {
+    console.error('[Result Storage] Failed to store results:', error);
+    throw new Error(`Storage failed: ${error.message}`);
   }
+
+  console.log(`[Result Storage] Successfully stored ${dataToInsert.length} results`);
 }
 
 export async function POST(request: NextRequest) {
@@ -228,24 +191,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'At least one text input is required' }, { status: 400 });
     }
 
-    console.log(`Processing ${requestBody.texts.length} texts in batches of up to ${MAX_BATCH_SIZE}...`);
+    console.log(`Processing ${requestBody.texts.length} texts...`);
 
-    const analysisResults: AnalysisResult[] = [];
-    for (let i = 0; i < requestBody.texts.length; i += MAX_BATCH_SIZE) {
-      const textBatch = requestBody.texts.slice(i, i + MAX_BATCH_SIZE);
-      const batchResults = await analyzeMedicalReportBatch(textBatch);
-      analysisResults.push(...batchResults);
-    }
+    const analysisResults = await analyzeMedicalReports(requestBody.texts);
 
     console.log('Analysis Results:', JSON.stringify(analysisResults, null, 2));
 
-    // Upload data to Supabase
-    const uploadedData = await uploadToSupabase(analysisResults, PATIENT_NUMBER);
+    // Store the results
+    await storeResults(analysisResults);
 
     return NextResponse.json({ 
-      message: 'Medical reports analyzed and uploaded to Supabase successfully', 
-      results: analysisResults,
-      uploadedData: uploadedData
+      message: 'Medical reports analyzed and stored successfully', 
+      results: analysisResults 
     });
   } catch (error) {
     console.error('Error processing medical reports:', error);
