@@ -485,12 +485,9 @@ async function handleInteractiveMessage(message: WhatsAppMessage, sender: string
     const { id, title } = message.interactive.button_reply;
     
     // Parse the button ID to extract information
-    const [action, taken, patientNumber, medicationName, timing] = id.split('_');
+    const [action, taken, patientNumber, medicationName, timing, reminderDate] = id.split('_');
     
     if (action === 'yes' && taken === 'taken') {
-      // Get the current date in YYYY-MM-DD format
-      const currentDate = new Date().toISOString().split('T')[0];
-      
       try {
         // Make a POST request to the update-adherence API route
         const response = await fetch(`${NEXT_PUBLIC_BASE_URL}/api/update-adherence`, {
@@ -501,14 +498,15 @@ async function handleInteractiveMessage(message: WhatsAppMessage, sender: string
           body: JSON.stringify({
             patientNumber,
             medicationName: medicationName.replace(/_/g, ' '),
-            date: currentDate,
+            date: reminderDate,
             timing,
             taken: true
           }),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to update adherence');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update adherence');
         }
 
         const result = await response.json();
@@ -516,22 +514,22 @@ async function handleInteractiveMessage(message: WhatsAppMessage, sender: string
 
         // Process the adherence update result
         if (result.success) {
-          const streak = result.updatedStreak ? result.updatedStreak.length : 0;
-          let message = `Great job taking your ${medicationName.replace(/_/g, ' ')} ${timing} dose! 🎉`;
-          
-          if (streak > 1) {
-            message += ` You're on a ${streak}-day streak. Keep up the fantastic work! 💪`;
-          } else {
-            message += ` Your commitment to your health is awesome. Keep it up! 💪`;
-          }
-
+          const message = `Great job taking your ${medicationName.replace(/_/g, ' ')} ${timing} dose! 🎉 Your commitment to your health is awesome.`;
           await sendMessage(sender, message);
         } else {
           throw new Error('Adherence update was not successful');
         }
       } catch (error) {
         console.error('Error updating adherence:', error);
-        await sendMessage(sender, "Oops! We couldn't record your medication right now. Don't worry, please try again later or contact support if this persists.");
+        let errorMessage = "Oops! We couldn't record your medication right now. Don't worry, please try again later or contact support if this persists.";
+        
+        if (error instanceof Error) {
+          if (error.message === 'Prescription not found or not current') {
+            errorMessage = `It seems like ${medicationName.replace(/_/g, ' ')} is not in your current prescription. Please check with your healthcare provider.`;
+          }
+        }
+        
+        await sendMessage(sender, errorMessage);
       }
     } else if (action === 'no' && taken === 'not_taken') {
       // Handle the case when the user hasn't taken their medication

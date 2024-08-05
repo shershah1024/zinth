@@ -76,10 +76,15 @@ async function fetchPatientMedications(patientNumber: string, timeOfDay: string)
   return data || [];
 }
 
+function getCurrentDate() {
+    return new Date().toISOString().split('T')[0]; // Returns date in YYYY-MM-DD format
+  }
+
 async function sendReminderMessage(patientNumber: string, medicine: string, timing: string) {
-  console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}, timing: ${timing}`);
-  const reminderId = `${patientNumber}_${medicine.replace(/\s+/g, '_')}`;
-  console.log(`Generated reminder ID: ${reminderId}`);
+    const currentDate = getCurrentDate();
+    console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}, timing: ${timing}, date: ${currentDate}`);
+    const reminderId = `${patientNumber}_${medicine.replace(/\s+/g, '_')}_${timing}_${currentDate}`;
+    console.log(`Generated reminder ID: ${reminderId}`);
   
   const message = {
     bodyText: `Have you taken your ${timing} dose of ${medicine}?`,
