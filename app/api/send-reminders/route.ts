@@ -1,11 +1,11 @@
-// app/api/send-reminders/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendTwoButtonMessage } from '@/utils/whatsappUtils';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+const TIMEZONE_OFFSET = 5.5; // GMT+5:30
 
 interface Patient {
   patient_number: string;
@@ -13,18 +13,64 @@ interface Patient {
 
 interface Medication {
   medicine: string;
+  prescription_id: number;
 }
 
-const TIMEZONE_OFFSET = 5.5; // GMT+5:30
+interface TwoButtonMessage {
+  bodyText: string;
+  button1: {
+    id: string;
+    title: string;
+  };
+  button2: {
+    id: string;
+    title: string;
+  };
+}
+
+// Utility functions
+async function fetchWithTimeout(resource: string, options: RequestInit & { timeout?: number } = {}) {
+  const { timeout = 8000 } = options;
+  
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  const response = await fetch(resource, {
+    ...options,
+    signal: controller.signal  
+  });
+  clearTimeout(id);
+  
+  return response;
+}
+
+async function handleFetchErrors(response: Response) {
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(`HTTP error! status: ${response.status}, body: ${errorBody}`);
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+}
 
 function getCurrentTimeOfDay(): string | null {
-    // Temporarily force 'morning' for testing
-    return 'morning';
+  const now = new Date();
+  const hours = now.getUTCHours() + TIMEZONE_OFFSET;
+  
+  if (hours >= 5 && hours < 11) return 'morning';
+  if (hours >= 11 && hours < 16) return 'afternoon';
+  if (hours >= 16 && hours < 21) return 'evening';
+  if (hours >= 21 || hours < 5) return 'night';
+  
+  return null;
+}
+
+function getCurrentDate() {
+  return new Date().toISOString().split('T')[0]; // Returns date in YYYY-MM-DD format
 }
 
 async function fetchUniquePatients(timeOfDay: string): Promise<Patient[]> {
   console.log(`Fetching unique patients for ${timeOfDay}`);
-  const currentDate = new Date().toISOString().split('T')[0];
+  const currentDate = getCurrentDate();
   console.log(`Current date for prescription check: ${currentDate}`);
   
   const { data, error } = await supabase
@@ -41,13 +87,11 @@ async function fetchUniquePatients(timeOfDay: string): Promise<Patient[]> {
 
   console.log(`Raw patient data fetched: ${JSON.stringify(data)}`);
 
-  // Use an object to track unique patient numbers
   const uniquePatients: {[key: string]: boolean} = {};
   data?.forEach(row => {
     uniquePatients[row.patient_number] = true;
   });
 
-  // Convert the object keys back to an array of Patient objects
   const patients = Object.keys(uniquePatients).map(number => ({ patient_number: number }));
   console.log(`Unique patients found: ${patients.length}`);
   console.log(`Patient numbers: ${patients.map(p => p.patient_number).join(', ')}`);
@@ -57,11 +101,11 @@ async function fetchUniquePatients(timeOfDay: string): Promise<Patient[]> {
 
 async function fetchPatientMedications(patientNumber: string, timeOfDay: string): Promise<Medication[]> {
   console.log(`Fetching medications for patient ${patientNumber} for ${timeOfDay}`);
-  const currentDate = new Date().toISOString().split('T')[0];
+  const currentDate = getCurrentDate();
   
   const { data, error } = await supabase
     .from('prescriptions')
-    .select('medicine')
+    .select('id, medicine')
     .eq('patient_number', patientNumber)
     .eq(timeOfDay, true)
     .lte('start_date', currentDate)
@@ -73,27 +117,80 @@ async function fetchPatientMedications(patientNumber: string, timeOfDay: string)
   }
   
   console.log(`Medications found for patient ${patientNumber}: ${JSON.stringify(data)}`);
-  return data || [];
+  return data?.map(item => ({ medicine: item.medicine, prescription_id: item.id })) || [];
 }
 
-function getCurrentDate() {
-    return new Date().toISOString().split('T')[0]; // Returns date in YYYY-MM-DD format
-  }
+async function sendTwoButtonMessage(
+  to: string,
+  message: TwoButtonMessage
+) {
+  const url = `https://graph.facebook.com/v20.0/${process.env.PHONE_NUMBER_ID}/messages`;
+  const headers = {
+    'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
 
-async function sendReminderMessage(patientNumber: string, medicine: string, timing: string) {
-    const currentDate = getCurrentDate();
-    console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}, timing: ${timing}, date: ${currentDate}`);
-    const reminderId = `${patientNumber}_${medicine.replace(/\s+/g, '_')}_${timing}_${currentDate}`;
-    console.log(`Generated reminder ID: ${reminderId}`);
+  const data = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: to,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: {
+        text: message.bodyText
+      },
+      action: {
+        buttons: [
+          {
+            type: 'reply',
+            reply: {
+              id: message.button1.id,
+              title: message.button1.title
+            }
+          },
+          {
+            type: 'reply',
+            reply: {
+              id: message.button2.id,
+              title: message.button2.title
+            }
+          }
+        ]
+      }
+    }
+  };
+
+  try {
+    const response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(data),
+    });
+
+    await handleFetchErrors(response);
+
+    const responseData = await response.json();
+    console.log('Two-button message sent successfully:', responseData);
+    return responseData;
+  } catch (error) {
+    console.error('Error sending two-button message:', error);
+    throw error;
+  }
+}
+
+async function sendReminderMessage(patientNumber: string, medicine: string, timing: string, prescriptionId: number) {
+  const currentDate = getCurrentDate();
+  console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}, timing: ${timing}, date: ${currentDate}, prescriptionId: ${prescriptionId}`);
   
-  const message = {
+  const message: TwoButtonMessage = {
     bodyText: `Have you taken your ${timing} dose of ${medicine}?`,
     button1: {
-      id: `yes_taken_${reminderId}_${timing}`,
+      id: `yes_taken_${patientNumber}_${medicine.replace(/\s+/g, '_')}_${timing}_${currentDate}_${prescriptionId}`,
       title: "Yes"
     },
     button2: {
-      id: `no_not_taken_${reminderId}_${timing}`,
+      id: `no_not_taken_${patientNumber}_${medicine.replace(/\s+/g, '_')}_${timing}_${currentDate}_${prescriptionId}`,
       title: "No"
     }
   };
@@ -104,6 +201,7 @@ async function sendReminderMessage(patientNumber: string, medicine: string, timi
     console.log(`Reminder successfully sent to ${patientNumber} for ${medicine} (${timing})`);
   } catch (error) {
     console.error(`Error sending reminder to ${patientNumber} for ${medicine} (${timing}):`, error);
+    throw error;
   }
 }
 
@@ -125,7 +223,7 @@ async function sendReminders() {
     const medications = await fetchPatientMedications(patient.patient_number, timeOfDay);
     console.log(`Medications for patient ${patient.patient_number}: ${medications.length}`);
     for (const medication of medications) {
-      await sendReminderMessage(patient.patient_number, medication.medicine, timeOfDay);
+      await sendReminderMessage(patient.patient_number, medication.medicine, timeOfDay, medication.prescription_id);
       totalReminders++;
     }
   }

@@ -481,62 +481,35 @@ async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: s
 async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<void> {
   if (message.interactive?.type === 'button_reply') {
     console.log('Received button reply:', message.interactive.button_reply);
-    
-    const { id, title } = message.interactive.button_reply;
-    
-    // Parse the button ID to extract information
-    const [action, taken, patientNumber, medicationName, timing, reminderDate] = id.split('_');
-    
-    if (action === 'yes' && taken === 'taken') {
-      try {
-        // Make a POST request to the update-adherence API route
-        const response = await fetch(`${NEXT_PUBLIC_BASE_URL}/api/update-adherence`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            patientNumber,
-            medicationName: medicationName.replace(/_/g, ' '),
-            date: reminderDate,
-            timing,
-            taken: true
-          }),
-        });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to update adherence');
-        }
+    try {
+      // Call the interactive message handler route
+      const response = await fetch(`${NEXT_PUBLIC_BASE_URL}/api/handle-interactive-message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...message, from: sender }),
+      });
 
-        const result = await response.json();
-        console.log('Adherence update result:', result);
-
-        // Process the adherence update result
-        if (result.success) {
-          const message = `Great job taking your ${medicationName.replace(/_/g, ' ')} ${timing} dose! 🎉 Your commitment to your health is awesome.`;
-          await sendMessage(sender, message);
-        } else {
-          throw new Error('Adherence update was not successful');
-        }
-      } catch (error) {
-        console.error('Error updating adherence:', error);
-        let errorMessage = "Oops! We couldn't record your medication right now. Don't worry, please try again later or contact support if this persists.";
-        
-        if (error instanceof Error) {
-          if (error.message === 'Prescription not found or not current') {
-            errorMessage = `It seems like ${medicationName.replace(/_/g, ' ')} is not in your current prescription. Please check with your healthcare provider.`;
-          }
-        }
-        
-        await sendMessage(sender, errorMessage);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to handle interactive message');
       }
-    } else if (action === 'no' && taken === 'not_taken') {
-      // Handle the case when the user hasn't taken their medication
-      await sendMessage(sender, `I understand you haven't taken your ${medicationName.replace(/_/g, ' ')} ${timing} dose yet. Remember, it's important for your health. Is there anything preventing you from taking it?`);
-    } else {
-      // Handle unexpected button actions
-      await sendMessage(sender, "I'm not sure how to handle that response. Could you please clarify or try again?");
+
+      const result = await response.json();
+      console.log('Interactive message handling result:', result);
+
+      // The new route should handle sending messages, so we don't need to send any here
+    } catch (error) {
+      console.error('Error handling interactive message:', error);
+      let errorMessage = "Oops! We couldn't process your response right now. Don't worry, please try again later or contact support if this persists.";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      await sendMessage(sender, errorMessage);
     }
   } else {
     await sendMessage(sender, "I didn't quite catch that. Could you please use the buttons to respond?");
