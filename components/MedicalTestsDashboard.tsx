@@ -28,25 +28,29 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
   const [selectedElement, setSelectedElement] = useState<ProcessedTest | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const groupedAndFilteredTests = useMemo(() => {
-    const filtered = initialTestElements.filter(element =>
+  const uniqueTests = useMemo(() => {
+    const testMap = new Map<string, ProcessedTest>();
+    initialTestElements.forEach(test => {
+      const key = `${test.name}-${test.latestDate}-${test.latestValue}`;
+      if (!testMap.has(key) || new Date(test.latestDate) > new Date(testMap.get(key)!.latestDate)) {
+        testMap.set(key, {
+          ...test,
+          history: test.history.filter((record, index, self) =>
+            index === self.findIndex((t) => (
+              t.date === record.date && t.value === record.value
+            ))
+          )
+        });
+      }
+    });
+    return Array.from(testMap.values());
+  }, [initialTestElements]);
+
+  const filteredTests = useMemo(() => {
+    return uniqueTests.filter(element =>
       element.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-
-    return filtered.reduce((acc, test) => {
-      const date = test.latestDate;
-      if (!acc[date]) {
-        acc[date] = [];
-      }
-      acc[date].push(test);
-      return acc;
-    }, {} as Record<string, ProcessedTest[]>);
-  }, [initialTestElements, searchTerm]);
-
-  const sortedDates = useMemo(() => 
-    Object.keys(groupedAndFilteredTests).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()),
-    [groupedAndFilteredTests]
-  );
+  }, [uniqueTests, searchTerm]);
 
   const handleElementClick = (element: ProcessedTest) => setSelectedElement(element);
   const closeModal = () => setSelectedElement(null);
@@ -192,24 +196,16 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
       </div>
 
-      {sortedDates.map(date => (
-        <div key={date} className="mb-8">
-          <div className="flex items-center mb-4">
-            <Calendar className="w-6 h-6 mr-2 text-green-600" />
-            <h2 className="text-2xl font-semibold text-gray-800">{date}</h2>
-          </div>
-          <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            {groupedAndFilteredTests[date].map(element => (
-              <TestCard key={element.id} element={element} />
-            ))}
-          </motion.div>
-        </div>
-      ))}
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {filteredTests.map(element => (
+          <TestCard key={`${element.id}-${element.latestDate}-${element.latestValue}`} element={element} />
+        ))}
+      </motion.div>
 
       <AnimatePresence>
         {selectedElement && <Modal />}
