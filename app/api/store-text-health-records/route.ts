@@ -54,7 +54,7 @@ async function storeResults(result: AnalysisResult, public_url: string): Promise
   }));
 
   const { data, error } = await supabase
-    .from('medical_test_results')
+    .from('test_results')
     .insert(dataToInsert);
 
   if (error) {
