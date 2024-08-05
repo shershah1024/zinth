@@ -145,7 +145,7 @@ async function analyzeMedicalReport(text: string): Promise<AnalysisResult> {
 
 async function storeResults(results: AnalysisResult, publicUrl: string): Promise<void> {
   console.log(`[Result Storage] Storing results for URL: ${publicUrl}`);
-  const endpoint = '/api/store/test-results';
+  const endpoint = '/api/store-text-health-records';
 
   const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
@@ -165,7 +165,7 @@ async function storeResults(results: AnalysisResult, publicUrl: string): Promise
 export async function POST(request: NextRequest) {
   try {
     const requestBody: RequestBody = await request.json();
-    console.log('Received request body keys:', Object.keys(requestBody));
+    console.log('Received request body text length:', requestBody.text.length);
 
     if (!requestBody.text || requestBody.text.trim().length === 0) {
       console.error('Invalid input: text is missing or empty');
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
     console.log('Analysis Result:', JSON.stringify(analysisResult, null, 2));
 
     // Store the results
-    const public_url="None"
+    const public_url = "None";
     await storeResults(analysisResult, public_url);
 
     return NextResponse.json({ 
