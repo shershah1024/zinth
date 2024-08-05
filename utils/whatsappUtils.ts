@@ -165,3 +165,75 @@ export async function fetchWithTimeout(url: string, options: RequestInit, timeou
       handleSendMessageError(error);
     }
   }
+
+  interface TwoButtonMessage {
+    bodyText: string;
+    button1: {
+      id: string;
+      title: string;
+    };
+    button2: {
+      id: string;
+      title: string;
+    };
+  }
+  
+  export async function sendTwoButtonMessage(
+    to: string,
+    message: TwoButtonMessage
+  ) {
+    const url = `https://graph.facebook.com/v20.0/${process.env.PHONE_NUMBER_ID}/messages`;
+    const headers = {
+      'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
+      'Content-Type': 'application/json',
+    };
+  
+    const data = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: to,
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: {
+          text: message.bodyText
+        },
+        action: {
+          buttons: [
+            {
+              type: 'reply',
+              reply: {
+                id: message.button1.id,
+                title: message.button1.title
+              }
+            },
+            {
+              type: 'reply',
+              reply: {
+                id: message.button2.id,
+                title: message.button2.title
+              }
+            }
+          ]
+        }
+      }
+    };
+  
+    try {
+      const response = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(data),
+      });
+  
+      await handleFetchErrors(response);
+  
+      const responseData = await response.json();
+      console.log('Two-button message sent successfully:', responseData);
+      return responseData;
+    } catch (error) {
+      console.error('Error sending two-button message:', error);
+      throw error;
+    }
+  }
+  

@@ -1,7 +1,7 @@
 // app/api/send-reminders/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendMessage } from '@/utils/whatsappUtils';
+import { sendTwoButtonMessage } from '@/utils/whatsappUtils';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -21,6 +21,7 @@ function getCurrentTimeOfDay(): string | null {
     // Temporarily force 'morning' for testing
     return 'morning';
 }
+
 async function fetchUniquePatients(timeOfDay: string): Promise<Patient[]> {
   console.log(`Fetching unique patients for ${timeOfDay}`);
   const currentDate = new Date().toISOString().split('T')[0];
@@ -81,36 +82,20 @@ async function sendReminderMessage(patientNumber: string, medicine: string) {
   console.log(`Generated reminder ID: ${reminderId}`);
   
   const message = {
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: {
-        text: `Have you taken your medication: ${medicine}?`
-      },
-      action: {
-        buttons: [
-          {
-            type: "reply",
-            reply: {
-              id: `yes_taken_${reminderId}`,
-              title: "Yes"
-            }
-          },
-          {
-            type: "reply",
-            reply: {
-              id: `no_not_taken_${reminderId}`,
-              title: "No"
-            }
-          }
-        ]
-      }
+    bodyText: `Have you taken your medication: ${medicine}?`,
+    button1: {
+      id: `yes_taken_${reminderId}`,
+      title: "Yes"
+    },
+    button2: {
+      id: `no_not_taken_${reminderId}`,
+      title: "No"
     }
   };
 
   try {
     console.log(`Sending WhatsApp message to ${patientNumber}`);
-    await sendMessage(patientNumber, JSON.stringify(message));
+    await sendTwoButtonMessage(patientNumber, message);
     console.log(`Reminder successfully sent to ${patientNumber} for ${medicine}`);
   } catch (error) {
     console.error(`Error sending reminder to ${patientNumber} for ${medicine}:`, error);
