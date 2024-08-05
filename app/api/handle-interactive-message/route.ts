@@ -47,6 +47,14 @@ export async function POST(req: Request) {
       const isTaken = action === 'true' && taken === 'taken';
 
       try {
+        console.log('Sending update-adherence request with data:', {
+          prescription_id: prescriptionId,
+          date: reminderDate,
+          timing,
+          taken,
+          medicine_name: medicationName
+        });
+
         // Call the update-adherence route
         const adherenceResponse = await fetch(`${NEXT_PUBLIC_BASE_URL}/api/update-adherence`, {
           method: 'POST',
