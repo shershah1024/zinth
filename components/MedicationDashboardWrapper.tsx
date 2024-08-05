@@ -3,9 +3,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import MedicationDashboard from './MedicationDashboard';
 
+// Define the types more explicitly
 type StreakTiming = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
 type TimingValue = 'true' | 'false';
-type StreakValue = 'TRUE' | 'FALSE';
+
+enum StreakTimingStatus {
+  Taken = 'Taken',
+  NotTaken = 'NotTaken'
+}
 
 interface StreakMedication {
   id: number;
@@ -13,14 +18,9 @@ interface StreakMedication {
   before_after_food: string;
   start_date: string;
   end_date: string;
-  timings: Partial<Record<StreakTiming, TimingValue>>;
-  streak: Record<string, {
-    morning: StreakValue;
-    afternoon: StreakValue;
-    evening: StreakValue;
-    night: StreakValue;
-  }>;
-  public_url?: string;
+  timings: Record<StreakTiming, TimingValue>;
+  streak: Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>;
+  public_url?: string; // Add this line to include the prescription URL
 }
 
 interface StreakPastMedication {
@@ -28,24 +28,12 @@ interface StreakPastMedication {
   medicine: string;
   start_date: string;
   end_date: string;
-  timings: Partial<Record<StreakTiming, TimingValue>>;
+  timings: Record<StreakTiming, TimingValue>;
 }
 
 interface MedicationDashboardWrapperProps {
   initialCurrentMedications: StreakMedication[];
   initialPastMedications: StreakPastMedication[];
-}
-
-function convertTimingToBoolean(value: TimingValue | undefined): boolean {
-  return value === 'true';
-}
-
-function convertStreakToBoolean(value: StreakValue | undefined): boolean {
-  return value === 'TRUE';
-}
-
-function booleanToStreakValue(value: boolean): StreakValue {
-  return value ? 'TRUE' : 'FALSE';
 }
 
 export default function MedicationDashboardWrapper({
@@ -63,18 +51,19 @@ export default function MedicationDashboardWrapper({
         if (existingMed) {
           existingMed.streak = { ...existingMed.streak, ...med.streak };
           existingMed.timings = {
-            Morning: convertTimingToBoolean(existingMed.timings.Morning) || convertTimingToBoolean(med.timings.Morning) ? 'true' : 'false',
-            Afternoon: convertTimingToBoolean(existingMed.timings.Afternoon) || convertTimingToBoolean(med.timings.Afternoon) ? 'true' : 'false',
-            Evening: convertTimingToBoolean(existingMed.timings.Evening) || convertTimingToBoolean(med.timings.Evening) ? 'true' : 'false',
-            Night: convertTimingToBoolean(existingMed.timings.Night) || convertTimingToBoolean(med.timings.Night) ? 'true' : 'false',
+            Morning: existingMed.timings.Morning === 'true' || med.timings.Morning === 'true' ? 'true' : 'false',
+            Afternoon: existingMed.timings.Afternoon === 'true' || med.timings.Afternoon === 'true' ? 'true' : 'false',
+            Evening: existingMed.timings.Evening === 'true' || med.timings.Evening === 'true' ? 'true' : 'false',
+            Night: existingMed.timings.Night === 'true' || med.timings.Night === 'true' ? 'true' : 'false',
           };
           existingMed.start_date = new Date(existingMed.start_date) < new Date(med.start_date) ? existingMed.start_date : med.start_date;
           existingMed.end_date = new Date(existingMed.end_date) > new Date(med.end_date) ? existingMed.end_date : med.end_date;
+          // Preserve the public_url if it exists
           if (med.public_url) {
             existingMed.public_url = med.public_url;
           }
         } else {
-          acc.push(med);
+          acc.push({ ...med });
         }
         return acc;
       }, [] as StreakMedication[]);
@@ -105,8 +94,8 @@ export default function MedicationDashboardWrapper({
         body: JSON.stringify({ 
           prescriptionId: medicationId, 
           date, 
-          timing: timing.toLowerCase(), 
-          taken: booleanToStreakValue(taken)  // Convert to 'TRUE' or 'FALSE'
+          timing, 
+          status: taken ? StreakTimingStatus.Taken : StreakTimingStatus.NotTaken 
         }),
       });
       
@@ -115,28 +104,24 @@ export default function MedicationDashboardWrapper({
         throw new Error(errorData.error || 'Failed to update adherence');
       }
       
-      const { success } = await response.json();
+      const { updatedStreak } = await response.json();
       
-      if (success) {
-        setCurrentMedications(prevMeds => 
-          prevMeds?.map(med => 
-            med.id === medicationId 
-              ? { 
-                  ...med, 
-                  streak: {
-                    ...med.streak,
-                    [date]: {
-                      ...med.streak[date],
-                      [timing.toLowerCase()]: booleanToStreakValue(taken)
-                    }
+      setCurrentMedications(prevMeds => 
+        prevMeds?.map(med => 
+          med.id === medicationId 
+            ? { 
+                ...med, 
+                streak: {
+                  ...med.streak,
+                  [date]: {
+                    ...med.streak[date],
+                    [timing]: taken ? StreakTimingStatus.Taken : StreakTimingStatus.NotTaken
                   }
                 }
-              : med
-          ) ?? null
-        );
-      } else {
-        throw new Error('Failed to update adherence');
-      }
+              }
+            : med
+        ) ?? null
+      );
     } catch (error) {
       console.error('Error updating adherence:', error);
       setError('Failed to update adherence. Please try again.');
