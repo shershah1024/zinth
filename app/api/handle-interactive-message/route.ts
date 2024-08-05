@@ -1,5 +1,3 @@
-// app/api/handle-interactive-message/route.ts
-
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
 
@@ -16,7 +14,7 @@ export async function POST(req: Request) {
       const { id, title } = message.interactive.button_reply;
       
       // Parse the button ID to extract information
-      const [action, taken, patientNumber, medicationName, timing, reminderDate, prescriptionId] = id.split('||');
+      const [action, taken, prescriptionId, medicationName, timing, reminderDate] = id.split('||');
       
       if (action === 'yes' && taken === 'taken') {
         try {
@@ -27,8 +25,7 @@ export async function POST(req: Request) {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              patientNumber,
-              medicationName: medicationName.replace(/_/g, ' '),
+              prescriptionId,
               date: reminderDate,
               timing,
               taken: true
@@ -52,7 +49,7 @@ export async function POST(req: Request) {
           console.error('Error updating adherence:', error);
           let errorMessage = "Oops! We couldn't record your medication right now. Don't worry, please try again later or contact support if this persists.";
           
-          if (error instanceof Error && error.message === 'Prescription not found or not current') {
+          if (error instanceof Error && error.message === 'Prescription not found') {
             errorMessage = `It seems like ${medicationName.replace(/_/g, ' ')} is not in your current prescription. Please check with your healthcare provider.`;
           }
           
