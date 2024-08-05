@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { sendMessage } from '@/utils/whatsappUtils';
+import { createClient } from '@supabase/supabase-js';
 
 const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
 export async function POST(req: Request) {
   try {
@@ -14,57 +19,80 @@ export async function POST(req: Request) {
       const { id, title } = message.interactive.button_reply;
       
       // Parse the button ID to extract information
-      const [action, taken, prescriptionId, medicationName, timing, reminderDate] = id.split('||');
+      const [action, taken, prescriptionId, ...medicationNameParts] = id.split('||');
+      const timing = medicationNameParts.pop(); // The last part is the timing
+      const reminderDate = medicationNameParts.pop(); // The second-to-last part is the reminder date
+      const medicationName = medicationNameParts.join(' '); // Join the remaining parts to form the medication name
       
-      if (action === 'yes' && taken === 'taken') {
-        try {
-          // Call the update-adherence route
-          const adherenceResponse = await fetch(`${NEXT_PUBLIC_BASE_URL}/api/update-adherence`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              prescriptionId,
-              date: reminderDate,
-              timing,
-              taken: true
-            }),
-          });
+      console.log(`Parsed data: action=${action}, taken=${taken}, prescriptionId=${prescriptionId}, medicationName=${medicationName}, timing=${timing}, reminderDate=${reminderDate}`);
 
-          if (!adherenceResponse.ok) {
-            const errorData = await adherenceResponse.json();
-            throw new Error(errorData.error || 'Failed to update adherence');
-          }
+      // Verify that the prescription is current and matches the medication
+      const { data: prescription, error: prescriptionError } = await supabase
+        .from('prescriptions')
+        .select('*')
+        .eq('id', prescriptionId)
+        .single();
 
-          const adherenceResult = await adherenceResponse.json();
-          console.log('Adherence update result:', adherenceResult);
+      if (prescriptionError || !prescription) {
+        throw new Error('Prescription not found or no longer active');
+      }
 
-          // Send confirmation message
-          const confirmationMessage = `Great job taking your ${medicationName.replace(/_/g, ' ')} ${timing} dose! 🎉 Your commitment to your health is awesome.`;
-          await sendMessage(message.from, confirmationMessage);
+      if (prescription.medicine.toLowerCase() !== medicationName.toLowerCase()) {
+        console.log(`Mismatch: prescription.medicine=${prescription.medicine}, medicationName=${medicationName}`);
+        throw new Error('Medication name does not match the prescription');
+      }
 
-          return NextResponse.json({ success: true, message: 'Adherence recorded and confirmation sent' });
-        } catch (error) {
-          console.error('Error updating adherence:', error);
-          let errorMessage = "Oops! We couldn't record your medication right now. Don't worry, please try again later or contact support if this persists.";
-          
-          if (error instanceof Error && error.message === 'Prescription not found') {
-            errorMessage = `It seems like ${medicationName.replace(/_/g, ' ')} is not in your current prescription. Please check with your healthcare provider.`;
-          }
-          
-          await sendMessage(message.from, errorMessage);
-          return NextResponse.json({ error: 'Failed to update adherence' }, { status: 500 });
+      const isTaken = action === 'yes' && taken === 'taken';
+      
+      try {
+        // Call the update-adherence route
+        const adherenceResponse = await fetch(`${NEXT_PUBLIC_BASE_URL}/api/update-adherence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            prescriptionId,
+            date: reminderDate,
+            timing,
+            taken: isTaken
+          }),
+        });
+
+        if (!adherenceResponse.ok) {
+          const errorData = await adherenceResponse.json();
+          throw new Error(errorData.error || 'Failed to update adherence');
         }
-      } else if (action === 'no' && taken === 'not_taken') {
-        // Handle the case when the user hasn't taken their medication
-        const reminderMessage = `I understand you haven't taken your ${medicationName.replace(/_/g, ' ')} ${timing} dose yet. Remember, it's important for your health. Is there anything preventing you from taking it?`;
-        await sendMessage(message.from, reminderMessage);
-        return NextResponse.json({ success: true, message: 'Reminder sent for missed dose' });
-      } else {
-        // Handle unexpected button actions
-        await sendMessage(message.from, "I'm not sure how to handle that response. Could you please clarify or try again?");
-        return NextResponse.json({ error: 'Unexpected button action' }, { status: 400 });
+
+        const adherenceResult = await adherenceResponse.json();
+        console.log('Adherence update result:', adherenceResult);
+
+        // Send confirmation message
+        let confirmationMessage;
+        if (isTaken) {
+          confirmationMessage = `Great job taking your ${medicationName} ${timing} dose! 🎉 Your commitment to your health is awesome.`;
+        } else {
+          confirmationMessage = `I've recorded that you haven't taken your ${medicationName} ${timing} dose. Remember, it's important for your health. Is there anything preventing you from taking it?`;
+        }
+        await sendMessage(message.from, confirmationMessage);
+
+        return NextResponse.json({ success: true, message: 'Adherence recorded and confirmation sent' });
+      } catch (error) {
+        console.error('Error updating adherence:', error);
+        let errorMessage = "Oops! We couldn't record your medication right now. Don't worry, please try again later or contact support if this persists.";
+        
+        if (error instanceof Error) {
+          if (error.message === 'Prescription not found or no longer active') {
+            errorMessage = `It seems like ${medicationName} is not in your current prescription. Please check with your healthcare provider.`;
+          } else if (error.message === 'Medication name does not match the prescription') {
+            errorMessage = `There seems to be a mismatch with your medication information. Please contact support for assistance.`;
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
+        await sendMessage(message.from, errorMessage);
+        return NextResponse.json({ error: 'Failed to update adherence' }, { status: 500 });
       }
     } else {
       await sendMessage(message.from, "I didn't quite catch that. Could you please use the buttons to respond?");
