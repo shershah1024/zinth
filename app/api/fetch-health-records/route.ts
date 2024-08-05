@@ -4,6 +4,8 @@ import { MedicalTest, ProcessedTest } from '@/types/medicalTests';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const revalidate = 30;
+
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error('Missing required Supabase environment variables');
