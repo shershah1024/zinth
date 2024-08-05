@@ -1,14 +1,17 @@
-//app/api/analyze-health-reports-text/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { format } from 'date-fns';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const MAX_BATCH_SIZE = 3;
 
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
+}
+
+if (!BASE_URL) {
+  console.warn('BASE_URL is not set in the environment variables. Using default: http://localhost:3000');
 }
 
 export const maxDuration = 300; // 5 minutes
@@ -43,6 +46,7 @@ interface AnthropicResponse {
 
 interface RequestBody {
   texts: string[];
+  publicUrl: string;
 }
 
 function getTodayDate(): string {
@@ -146,6 +150,25 @@ async function analyzeMedicalReportBatch(texts: string[]): Promise<AnalysisResul
   return toolUseContent.input;
 }
 
+async function storeResults(results: AnalysisResult[], publicUrl: string): Promise<void> {
+  console.log(`[Result Storage] Storing results for URL: ${publicUrl}`);
+  const endpoint = '/api/store/test-results';
+
+  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ results, publicUrl })
+  });
+  
+  if (!storeResponse.ok) {
+    const errorText = await storeResponse.text();
+    console.error(`[Result Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
+    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
+  }
+
+  console.log(`[Result Storage] Successfully stored results`);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const requestBody: RequestBody = await request.json();
@@ -154,6 +177,11 @@ export async function POST(request: NextRequest) {
     if (!requestBody.texts || requestBody.texts.length === 0) {
       console.error('Invalid input: texts are missing or empty');
       return NextResponse.json({ error: 'At least one text input is required' }, { status: 400 });
+    }
+
+    if (!requestBody.publicUrl) {
+      console.error('Invalid input: publicUrl is missing');
+      return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
     console.log(`Processing ${requestBody.texts.length} texts in batches of up to ${MAX_BATCH_SIZE}...`);
@@ -167,7 +195,10 @@ export async function POST(request: NextRequest) {
 
     console.log('Analysis Results:', JSON.stringify(analysisResults, null, 2));
 
-    return NextResponse.json({ message: 'Medical reports analyzed successfully', results: analysisResults });
+    // Store the results
+    await storeResults(analysisResults, requestBody.publicUrl);
+
+    return NextResponse.json({ message: 'Medical reports analyzed and stored successfully', results: analysisResults });
   } catch (error) {
     console.error('Error processing medical reports:', error);
     return NextResponse.json({ 
