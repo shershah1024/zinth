@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { format } from 'date-fns';
+
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -15,6 +17,9 @@ if (!BASE_URL) {
 
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
+
+
+
 
 interface TestComponent {
   component: string;
@@ -50,6 +55,13 @@ interface RequestBody {
   publicUrl: string;
 }
 
+function getTodayDate(): string {
+  return format(new Date(), 'yyyy-MM-dd');
+}
+
+const todayDate = getTodayDate();
+
+
 async function analyzeMedicalReportBatch(images: string[] = [], texts: string[] = [], mimeType?: string): Promise<AnalysisResult[]> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -59,7 +71,7 @@ async function analyzeMedicalReportBatch(images: string[] = [], texts: string[] 
 
   const tools = [{
     name: "medical_report_analysis",
-    description: "Analyze medical test report and extract key components.",
+    description: "Analyze medical test report or message and extract key components.",
     input_schema: {
       type: "object",
       properties: {
@@ -87,7 +99,7 @@ async function analyzeMedicalReportBatch(images: string[] = [], texts: string[] 
         },
         date: {
           type: "string",
-          description: "Date of the test, in YYYY-MM-DD format"
+          description: `Date of the test, in YYYY-MM-DD format. If it is not given, use today's date (${getTodayDate()}).`
         },
       },
       required: ["components", "date"]
@@ -109,7 +121,7 @@ async function analyzeMedicalReportBatch(images: string[] = [], texts: string[] 
     })),
     {
       type: "text",
-      text: `Analyze these ${images.length} medical test report images and ${texts.length} textual reports. Extract all test components with their names, measurements, units, and normal ranges. Also provide the test date for each report. If there are imaging results, include a description.`
+      text: `Analyze these ${images.length} medical test report images and/or ${texts.length} textual reports. Extract all test components with their names, measurements, units, and normal ranges. Also provide the test date for each report.`
     }
   ];
 
