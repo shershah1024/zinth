@@ -19,9 +19,16 @@ export async function POST(req: Request) {
       const { id, title } = message.interactive.button_reply;
 
 // Parse the button ID to extract information
+
+
 const parsedData = JSON.parse(id);
 
-const { action, taken, patientNumber, medicationName, timing, reminderDate, prescriptionId } = parsedData;
+let { action, taken, patientNumber, medicationName, timing, reminderDate, prescriptionId } = parsedData;
+
+// Replace underscores with spaces in medicationName
+medicationName = medicationName.replace(/_/g, ' ');
+
+
 
 console.log(`Parsed data: action=${action}, taken=${taken}, patientNumber=${patientNumber}, prescriptionId=${prescriptionId}, medicationName=${medicationName}, timing=${timing}, reminderDate=${reminderDate}`);
 
