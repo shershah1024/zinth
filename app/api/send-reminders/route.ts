@@ -76,19 +76,19 @@ async function fetchPatientMedications(patientNumber: string, timeOfDay: string)
   return data || [];
 }
 
-async function sendReminderMessage(patientNumber: string, medicine: string) {
-  console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}`);
+async function sendReminderMessage(patientNumber: string, medicine: string, timing: string) {
+  console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}, timing: ${timing}`);
   const reminderId = `${patientNumber}_${medicine.replace(/\s+/g, '_')}`;
   console.log(`Generated reminder ID: ${reminderId}`);
   
   const message = {
-    bodyText: `Have you taken your medication: ${medicine}?`,
+    bodyText: `Have you taken your ${timing} dose of ${medicine}?`,
     button1: {
-      id: `yes_taken_${reminderId}`,
+      id: `yes_taken_${reminderId}_${timing}`,
       title: "Yes"
     },
     button2: {
-      id: `no_not_taken_${reminderId}`,
+      id: `no_not_taken_${reminderId}_${timing}`,
       title: "No"
     }
   };
@@ -96,9 +96,9 @@ async function sendReminderMessage(patientNumber: string, medicine: string) {
   try {
     console.log(`Sending WhatsApp message to ${patientNumber}`);
     await sendTwoButtonMessage(patientNumber, message);
-    console.log(`Reminder successfully sent to ${patientNumber} for ${medicine}`);
+    console.log(`Reminder successfully sent to ${patientNumber} for ${medicine} (${timing})`);
   } catch (error) {
-    console.error(`Error sending reminder to ${patientNumber} for ${medicine}:`, error);
+    console.error(`Error sending reminder to ${patientNumber} for ${medicine} (${timing}):`, error);
   }
 }
 
@@ -120,7 +120,7 @@ async function sendReminders() {
     const medications = await fetchPatientMedications(patient.patient_number, timeOfDay);
     console.log(`Medications for patient ${patient.patient_number}: ${medications.length}`);
     for (const medication of medications) {
-      await sendReminderMessage(patient.patient_number, medication.medicine);
+      await sendReminderMessage(patient.patient_number, medication.medicine, timeOfDay);
       totalReminders++;
     }
   }

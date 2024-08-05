@@ -481,8 +481,53 @@ async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: s
 async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<void> {
   if (message.interactive?.type === 'button_reply') {
     console.log('Received button reply:', message.interactive.button_reply);
-    await sendMessage(sender, `You clicked: ${message.interactive.button_reply.title}`);
+    
+    const { id, title } = message.interactive.button_reply;
+    
+    // Parse the button ID to extract information
+    const [action, taken, patientNumber, medicationName, timing] = id.split('_');
+    
+    if (action === 'yes' && taken === 'taken') {
+      // Get the current date in YYYY-MM-DD format
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      try {
+        // Make a POST request to the update-adherence API route
+        const response = await fetch(`${NEXT_PUBLIC_BASE_URL}/api/update-adherence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            patientNumber,
+            medicationName: medicationName.replace(/_/g, ' '),
+            date: currentDate,
+            timing,
+            taken: true
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update adherence');
+        }
+
+        const result = await response.json();
+        console.log('Adherence update result:', result);
+
+        // Send a friendly, encouraging confirmation message
+        await sendMessage(sender, `Great job taking your ${medicationName.replace(/_/g, ' ')} ${timing} dose! 🎉 Your commitment to your health is awesome. Keep up the good work! 💪`);
+      } catch (error) {
+        console.error('Error updating adherence:', error);
+        await sendMessage(sender, "Oops! We couldn't record your medication right now. Don't worry, please try again later or contact support if this persists.");
+      }
+    } else if (action === 'no' && taken === 'not_taken') {
+      // Handle the case when the user hasn't taken their medication
+      await sendMessage(sender, `I understand you haven't taken your ${medicationName.replace(/_/g, ' ')} ${timing} dose yet. Remember, it's important for your health. Is there anything preventing you from taking it?`);
+    } else {
+      // Handle other button actions if necessary
+      await sendMessage(sender, "I'm not sure how to handle that response. Could you please clarify or try again?");
+    }
   } else {
-    await sendMessage(sender, 'Unsupported interactive message type');
+    await sendMessage(sender, "I didn't quite catch that. Could you please use the buttons to respond?");
   }
 }
