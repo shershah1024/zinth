@@ -261,6 +261,7 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 
       // Type assertion to treat the result as TextAnalysisResult
       const analysisResult = result as TextAnalysisResult;
+      console.log("analysis result is", analysisResult)
 
       if (!analysisResult.components || analysisResult.components.length === 0) {
         throw new Error('No analysis results found');
