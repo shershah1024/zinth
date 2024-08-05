@@ -142,7 +142,7 @@ async function analyzeMedicalReport(text: string): Promise<AnalysisResult> {
   return toolUseContent.input;
 }
 
-async function storeResults(result: AnalysisResult): Promise<void> {
+async function storeResults(result: AnalysisResult, public_url: string = "None"): Promise<void>   {
   console.log(`[Result Storage] Storing results`);
 
   const test_id = uuidv4();
@@ -156,7 +156,6 @@ async function storeResults(result: AnalysisResult): Promise<void> {
     normal_range_min: component.normal_range_min,
     normal_range_max: component.normal_range_max,
     date: result.date,
-    public_url: "None",
     normal_range_text: component.normal_range_text
   }));
 
