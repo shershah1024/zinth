@@ -3,15 +3,10 @@ import { format } from 'date-fns';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const MAX_BATCH_SIZE = 3;
 
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
-}
-
-if (!BASE_URL) {
-  console.warn('BASE_URL is not set in the environment variables. Using default: http://localhost:3000');
 }
 
 export const maxDuration = 300; // 5 minutes
@@ -46,7 +41,6 @@ interface AnthropicResponse {
 
 interface RequestBody {
   texts: string[];
-  publicUrl: string;
 }
 
 function getTodayDate(): string {
@@ -150,11 +144,12 @@ async function analyzeMedicalReportBatch(texts: string[]): Promise<AnalysisResul
   return toolUseContent.input;
 }
 
-async function storeResults(results: AnalysisResult[], publicUrl: string): Promise<void> {
-  console.log(`[Result Storage] Storing results for URL: ${publicUrl}`);
+// Modified storeResults function with default publicUrl as None
+async function storeResults(results: AnalysisResult[], publicUrl: string | null = null): Promise<void> {
+  console.log(`[Result Storage] Storing results${publicUrl ? ` for URL: ${publicUrl}` : ''}`);
   const endpoint = '/api/store/test-results';
 
-  const storeResponse = await fetch(`${BASE_URL}${endpoint}`, {
+  const storeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ results, publicUrl })
@@ -179,11 +174,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'At least one text input is required' }, { status: 400 });
     }
 
-    if (!requestBody.publicUrl) {
-      console.error('Invalid input: publicUrl is missing');
-      return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
-    }
-
     console.log(`Processing ${requestBody.texts.length} texts in batches of up to ${MAX_BATCH_SIZE}...`);
 
     const analysisResults: AnalysisResult[] = [];
@@ -195,10 +185,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Analysis Results:', JSON.stringify(analysisResults, null, 2));
 
-    // Store the results
-    await storeResults(analysisResults, requestBody.publicUrl);
-
-    return NextResponse.json({ message: 'Medical reports analyzed and stored successfully', results: analysisResults });
+    return NextResponse.json({ message: 'Medical reports analyzed successfully', results: analysisResults });
   } catch (error) {
     console.error('Error processing medical reports:', error);
     return NextResponse.json({ 
