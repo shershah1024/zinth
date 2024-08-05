@@ -229,3 +229,5 @@ const MedicalTestsDashboard: React.FC<MedicalTestsDashboardProps> = ({ initialTe
 };
 
 export default MedicalTestsDashboard;
+
+//to get the cron function
