@@ -161,8 +161,13 @@ async function analyzeMedicalReportBatch(texts: string[]): Promise<AnalysisResul
 }
 
 async function uploadToSupabase(results: AnalysisResult[], patientNumber: string) {
+  console.log('Starting uploadToSupabase function');
+  console.log('Results to be inserted:', JSON.stringify(results, null, 2));
+  console.log('Patient Number:', patientNumber);
+
   const dataToInsert = results.flatMap(result => {
     const test_id = uuidv4(); // Generate a UUID for each test
+    console.log(`Generated test_id: ${test_id}`);
     return result.components.map(component => ({
       test_id: test_id,
       patient_number: patientNumber,
@@ -172,15 +177,23 @@ async function uploadToSupabase(results: AnalysisResult[], patientNumber: string
       test_unit: component.unit,
       normal_range_min: component.normal_range_min,
       normal_range_max: component.normal_range_max,
-      normal_range_text: component.normal_range_text
+      normal_range_text: component.normal_range_text,
+      public_url: "none" // Adding the new field with default value "none"
     }));
   });
+
+  console.log('Data prepared for insertion:', JSON.stringify(dataToInsert, null, 2));
 
   const { data, error } = await supabase
     .from('medical_test_results')
     .insert(dataToInsert);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error inserting data into Supabase:', error);
+    throw error;
+  }
+
+  console.log('Data successfully inserted into Supabase:', JSON.stringify(data, null, 2));
   return data;
 }
 
