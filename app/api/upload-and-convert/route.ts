@@ -1,6 +1,3 @@
-
-//app/api/upload-and-convert/rpute.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const PDF_TO_IMAGE_API_URL = 'https://pdftobase64-4f8f77205c96.herokuapp.com/pdf-to-base64/';
@@ -42,17 +39,8 @@ async function uploadFile(file: File): Promise<string> {
   return data.publicUrl;
 }
 
-async function getBase64(file: File): Promise<string> {
-  console.log(`[File to Base64] Converting file to base64: ${file.name}`);
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const base64 = buffer.toString('base64');
-  console.log(`[File to Base64] Conversion complete. Base64 string length: ${base64.length}`);
-  return base64;
-}
-
-async function convertPdfToImages(publicUrl: string): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
-  console.log(`[PDF Conversion] Starting conversion for file at URL: ${publicUrl}`);
+async function convertToBase64(publicUrl: string): Promise<{ url: string; base64_images: string[]; mimeType: string }> {
+  console.log(`[File Conversion] Starting conversion for file at URL: ${publicUrl}`);
 
   const response = await fetch(PDF_TO_IMAGE_API_URL, {
     method: 'POST',
@@ -62,27 +50,27 @@ async function convertPdfToImages(publicUrl: string): Promise<{ url: string; bas
     body: JSON.stringify({ url: publicUrl })
   });
 
-  console.log(`[PDF Conversion] Response status: ${response.status}`);
+  console.log(`[File Conversion] Response status: ${response.status}`);
 
   if (!response.ok) {
     const responseText = await response.text();
-    console.error(`[PDF Conversion] Failed with status ${response.status}. Response: ${responseText}`);
-    throw new Error(`PDF conversion failed with status ${response.status}. Response: ${responseText}`);
+    console.error(`[File Conversion] Failed with status ${response.status}. Response: ${responseText}`);
+    throw new Error(`File conversion failed with status ${response.status}. Response: ${responseText}`);
   }
 
   const data = await response.json();
-  console.log('[PDF Conversion] Conversion result:', JSON.stringify(data, null, 2));
+  console.log('[File Conversion] Conversion result:', JSON.stringify(data, null, 2));
 
   if (!data.base64_images || data.base64_images.length === 0) {
-    console.error('[PDF Conversion] No images returned');
-    throw new Error('PDF conversion returned no images');
+    console.error('[File Conversion] No images returned');
+    throw new Error('File conversion returned no images');
   }
 
-  console.log(`[PDF Conversion] Successfully converted ${data.base64_images.length} pages`);
+  console.log(`[File Conversion] Successfully converted ${data.base64_images.length} images`);
   return {
     url: publicUrl,
     base64_images: data.base64_images,
-    mimeType: 'image/png'  // PDF conversion always results in PNG images
+    mimeType: data.mimeType || 'image/png'  // Use the returned mimeType or default to 'image/png'
   };
 }
 
@@ -101,29 +89,12 @@ export async function POST(request: NextRequest) {
     // Upload file using the existing endpoint
     const publicUrl = await uploadFile(file);
 
-    let result: { url: string; base64_images: string | string[]; mimeType: string };
-
-    if (file.type === 'application/pdf') {
-      // For PDF files, convert to images
-      result = await convertPdfToImages(publicUrl);
-      console.log(`[PDF Processing] Converted PDF into ${result.base64_images.length} images. MIME type: ${result.mimeType}`);
-    } else {
-      // For all other file types, use the actual MIME type of the file
-      const base64 = await getBase64(file);
-      result = {
-        url: publicUrl,
-        base64_images: base64,
-        mimeType: file.type || 'application/octet-stream'  // Use actual MIME type or fallback if undefined
-      };
-      console.log(`[File Processing] Converted file to base64. MIME type: ${result.mimeType}`);
-    }
+    // Convert the file to base64 using the PDF to Base64 API
+    const result = await convertToBase64(publicUrl);
 
     console.log(`[File Processing] Final result:`, JSON.stringify(result, (key, value) => {
       if (key === 'base64_images' && Array.isArray(value)) {
         return value.map(img => img.substring(0, 50) + '...');
-      }
-      if (key === 'base64_images' && typeof value === 'string') {
-        return value.substring(0, 50) + '...';
       }
       return value;
     }, 2));
