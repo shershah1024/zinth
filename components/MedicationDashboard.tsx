@@ -7,18 +7,21 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { motion } from 'framer-motion';
 
-// Type definitions (unchanged)
-interface HistoryRecord {
-  date: string;
-  value: StreakTimingStatus;
-}
+type StreakTiming = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+type TimingValue = 'true' | 'false';
+type StreakValue = 'TRUE' | 'FALSE';
 
 interface StreakMedication {
   id: number;
   medicine: string;
   before_after_food: string;
   timings: Partial<Record<StreakTiming, TimingValue>>;
-  streak: Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>;
+  streak: Record<string, {
+    morning: StreakValue;
+    afternoon: StreakValue;
+    evening: StreakValue;
+    night: StreakValue;
+  }>;
   public_url?: string;
 }
 
@@ -30,18 +33,18 @@ interface StreakPastMedication {
   timings: Partial<Record<StreakTiming, TimingValue>>;
 }
 
-type StreakTiming = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
-type TimingValue = 'true' | 'false';
-
-enum StreakTimingStatus {
-  Taken = 'Taken',
-  NotTaken = 'NotTaken'
-}
-
 interface MedicationDashboardProps {
   currentMedications: StreakMedication[] | null;
   pastMedications: StreakPastMedication[] | null;
   onUpdateAdherence: (medicationId: number, date: string, timing: StreakTiming, taken: boolean) => void;
+}
+
+function convertStreakToBoolean(value: StreakValue | undefined): boolean {
+  return value === 'TRUE';
+}
+
+function booleanToStreakValue(value: boolean): StreakValue {
+  return value ? 'TRUE' : 'FALSE';
 }
 
 const MedicationDashboard: React.FC<MedicationDashboardProps> = ({ 
@@ -82,13 +85,18 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
     return (
       <div className="flex flex-wrap gap-4">
         {activeTimings.map((timing) => {
-          const isChecked = medication.streak[date]?.[timing] === StreakTimingStatus.Taken;
+          const lowercaseTiming = timing.toLowerCase() as keyof typeof medication.streak[string];
+          const isChecked = convertStreakToBoolean(medication.streak[date]?.[lowercaseTiming]);
           return (
             <div key={timing} className="flex items-center space-x-2">
               <Checkbox
                 id={`${medication.id}-${timing}`}
                 checked={isChecked}
-                onCheckedChange={() => onUpdateAdherence(medication.id, date, timing, !isChecked)}
+                onCheckedChange={(checked) => {
+                  if (typeof checked === 'boolean') {
+                    onUpdateAdherence(medication.id, date, timing, checked);
+                  }
+                }}
                 className="text-blue-500 border-blue-500"
               />
               <label
@@ -123,15 +131,14 @@ const MedicationDashboard: React.FC<MedicationDashboardProps> = ({
               <div className="text-sm text-gray-600">{format(day, 'd')}</div>
               <div className="flex flex-col gap-1 mt-1">
                 {activeTimings.map((timing) => {
-                  const status = medication.streak[date]?.[timing];
-                  let bgColor = 'bg-gray-200';
-                  if (status === StreakTimingStatus.Taken) bgColor = 'bg-blue-500';
-                  if (status === StreakTimingStatus.NotTaken) bgColor = 'bg-red-400';
+                  const lowercaseTiming = timing.toLowerCase() as keyof typeof medication.streak[string];
+                  const taken = convertStreakToBoolean(medication.streak[date]?.[lowercaseTiming]);
+                  let bgColor = taken ? 'bg-blue-500' : 'bg-red-400';
                   return (
                     <div
                       key={`${date}-${timing}`}
                       className={`w-3 h-3 rounded-full ${bgColor} transition-all duration-300 ease-in-out`}
-                      title={`${timing}: ${status === StreakTimingStatus.Taken ? 'Taken' : 'Not taken'}`}
+                      title={`${timing}: ${taken ? 'Taken' : 'Not taken'}`}
                     />
                   );
                 })}

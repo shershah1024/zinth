@@ -1,8 +1,35 @@
-//app/prescriptions/page.tsx
+// app/prescriptions/page.tsx
 
 import { Suspense } from 'react';
 import MedicationDashboardWrapper from '@/components/MedicationDashboardWrapper';
-import { StreakMedication, StreakPastMedication, StreakTiming, StreakTimingStatus, TimingValue } from '@/types/StreakTypes';
+
+type StreakTiming = 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+type TimingValue = 'true' | 'false';
+type StreakValue = 'TRUE' | 'FALSE';
+
+interface StreakMedication {
+  id: number;
+  medicine: string;
+  before_after_food: string;
+  start_date: string;
+  end_date: string;
+  timings: Partial<Record<StreakTiming, TimingValue>>;
+  streak: Record<string, {
+    morning: StreakValue;
+    afternoon: StreakValue;
+    evening: StreakValue;
+    night: StreakValue;
+  }>;
+  public_url?: string;
+}
+
+interface StreakPastMedication {
+  id: number;
+  medicine: string;
+  start_date: string;
+  end_date: string;
+  timings: Partial<Record<StreakTiming, TimingValue>>;
+}
 
 interface RawMedication {
   id: number;
@@ -10,12 +37,17 @@ interface RawMedication {
   before_after_food: string;
   start_date: string;
   end_date: string;
-  streak: Record<string, Partial<Record<StreakTiming, boolean>>>;
+  streak: Record<string, {
+    morning: StreakValue;
+    afternoon: StreakValue;
+    evening: StreakValue;
+    night: StreakValue;
+  }>;
   morning: TimingValue;
   afternoon: TimingValue;
   evening: TimingValue;
   night: TimingValue;
-  public_url?: string; // Add this line
+  public_url?: string;
 }
 
 interface RawPastMedication {
@@ -47,20 +79,14 @@ async function fetchMedicationData() {
       before_after_food: med.before_after_food,
       start_date: med.start_date,
       end_date: med.end_date,
-      streak: Object.entries(med.streak).reduce((acc, [date, timings]) => {
-        acc[date] = Object.entries(timings).reduce((timingAcc, [timing, value]) => {
-          timingAcc[timing as StreakTiming] = value ? StreakTimingStatus.Taken : StreakTimingStatus.NotTaken;
-          return timingAcc;
-        }, {} as Partial<Record<StreakTiming, StreakTimingStatus>>);
-        return acc;
-      }, {} as Record<string, Partial<Record<StreakTiming, StreakTimingStatus>>>),
+      streak: med.streak, // No need to transform, as it's already in the correct format
       timings: {
         Morning: med.morning,
         Afternoon: med.afternoon,
         Evening: med.evening,
         Night: med.night
       },
-      public_url: med.public_url // Add this line
+      public_url: med.public_url
     }));
 
     const pastMedications: StreakPastMedication[] = pastMedicationsRaw.map(med => ({
