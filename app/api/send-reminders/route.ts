@@ -175,14 +175,19 @@ async function sendReminderMessage(patientNumber: string, medicine: string, timi
   const currentDate = getCurrentDate();
   console.log(`Preparing reminder message for patient ${patientNumber}, medicine: ${medicine}, timing: ${timing}, date: ${currentDate}, prescriptionId: ${prescriptionId}`);
   
+  const trimmedPatientNumber = patientNumber.trim();
+  const trimmedMedicine = medicine.trim().replace(/\s+/g, '_');
+  const trimmedTiming = timing.trim();
+  const trimmedCurrentDate = currentDate.trim();
+  
   const message: TwoButtonMessage = {
     bodyText: `Have you taken your ${timing} dose of ${medicine}?`,
     button1: {
-      id: `yes_taken_${patientNumber}_${medicine.replace(/\s+/g, '_')}_${timing}_${currentDate}_${prescriptionId}`,
+      id: `yes||taken||${trimmedPatientNumber}||${trimmedMedicine}||${trimmedTiming}||${trimmedCurrentDate}||${prescriptionId}`,
       title: "Yes"
     },
     button2: {
-      id: `no_not_taken_${patientNumber}_${medicine.replace(/\s+/g, '_')}_${timing}_${currentDate}_${prescriptionId}`,
+      id: `no||not_taken||${trimmedPatientNumber}||${trimmedMedicine}||${trimmedTiming}||${trimmedCurrentDate}||${prescriptionId}`,
       title: "No"
     }
   };
