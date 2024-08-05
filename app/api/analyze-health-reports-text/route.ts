@@ -145,9 +145,10 @@ async function analyzeMedicalReport(text: string): Promise<AnalysisResult> {
 async function storeResults(result: AnalysisResult): Promise<void> {
   console.log(`[Result Storage] Storing results`);
 
+  const test_id = uuidv4();
   const dataToInsert = result.components.map(component => ({
+    test_id: test_id,
     patient_number: PATIENT_NUMBER,
-    test_id: uuidv4(),
     component: component.component,
     value: component.value,
     unit: component.unit,
@@ -155,9 +156,8 @@ async function storeResults(result: AnalysisResult): Promise<void> {
     normal_range_max: component.normal_range_max,
     normal_range_text: component.normal_range_text,
     date: result.date,
-    public_url: "None", // Set to null for text-based reports
+    public_url: "None", // Set to "None" for text-based reports
   }));
-
   const { data, error } = await supabase
     .from('medical_test_results')
     .insert(dataToInsert);
