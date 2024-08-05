@@ -165,7 +165,7 @@ async function storeResults(results: AnalysisResult[]): Promise<void> {
       normal_range_max: component.normal_range_max,
       normal_range_text: component.normal_range_text,
       date: result.date,
-      public_url: null, // Set to null for text-based reports
+      public_url: "None", // Set to null for text-based reports
     }))
   );
 
