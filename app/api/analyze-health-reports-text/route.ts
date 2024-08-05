@@ -178,23 +178,45 @@ async function uploadToSupabase(results: AnalysisResult[], patientNumber: string
       normal_range_min: component.normal_range_min,
       normal_range_max: component.normal_range_max,
       normal_range_text: component.normal_range_text,
-      public_url: "none" // Adding the new field with default value "none"
+      public_url: "none"
     }));
   });
 
   console.log('Data prepared for insertion:', JSON.stringify(dataToInsert, null, 2));
 
-  const { data, error } = await supabase
-    .from('medical_test_results')
-    .insert(dataToInsert);
+  try {
+    const { data, error } = await supabase
+      .from('medical_test_results')
+      .insert(dataToInsert);
 
-  if (error) {
-    console.error('Error inserting data into Supabase:', error);
-    throw error;
+    if (error) {
+      console.error('Error inserting data into Supabase:');
+      console.error('Error object:', error);
+      console.error('Error message:', error.message);
+      console.error('Error details:', error.details);
+      console.error('Error hint:', error.hint);
+      console.error('Error code:', error.code);
+      
+      // Log all properties of the error object
+      for (const [key, value] of Object.entries(error)) {
+        console.error(`${key}:`, value);
+      }
+
+      throw error;
+    }
+
+    console.log('Data successfully inserted into Supabase:', JSON.stringify(data, null, 2));
+    return data;
+  } catch (e) {
+    console.error('Caught exception during Supabase insertion:');
+    console.error(e);
+    if (e instanceof Error) {
+      console.error('Error name:', e.name);
+      console.error('Error message:', e.message);
+      console.error('Error stack:', e.stack);
+    }
+    throw e;
   }
-
-  console.log('Data successfully inserted into Supabase:', JSON.stringify(data, null, 2));
-  return data;
 }
 
 export async function POST(request: NextRequest) {
