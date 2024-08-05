@@ -163,7 +163,7 @@ async function uploadToSupabase(results: AnalysisResult[], patientNumber: string
   console.log('Results to be inserted:', JSON.stringify(results, null, 2));
   console.log('Patient Number:', patientNumber);
 
-  const dataToInsert = results.flatMap(result => {
+  const dataToInsert = results.map(result => {
     const test_id = uuidv4(); // Generate a UUID for each test
     console.log(`Generated test_id: ${test_id}`);
     return result.components.map(component => ({
