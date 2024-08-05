@@ -8,6 +8,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+// Function to map incoming status to database enum
+function mapStatus(status: string): 'Taken' | 'NotTaken' {
+  switch (status.toLowerCase()) {
+    case 'taken':
+      return 'Taken';
+    case 'not_taken':
+    default:
+      return 'NotTaken';
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const requestBody = await req.text();
@@ -18,11 +29,11 @@ export async function POST(req: Request) {
     // Convert timing to lowercase
     const normalizedTiming = timing.toLowerCase();
 
-    // Keep status as is, don't convert to boolean
-    const medicationStatus = status;
+    // Map the status to the correct enum value
+    const medicationStatus = mapStatus(status);
 
     console.log("normalized timing is", normalizedTiming);
-    console.log("medication status is", medicationStatus);
+    console.log("mapped medication status is", medicationStatus);
 
     // First, fetch the medicine name from the prescriptions table
     const { data: prescriptionData, error: prescriptionError } = await supabase
