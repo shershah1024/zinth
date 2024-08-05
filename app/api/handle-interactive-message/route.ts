@@ -18,20 +18,15 @@ export async function POST(req: Request) {
       
       const { id, title } = message.interactive.button_reply;
 
-// Parse the button ID to extract information
+      // Parse the button ID to extract information
+      const parsedData = JSON.parse(id);
 
+      let { action, taken, patientNumber, medicationName, timing, reminderDate, prescriptionId } = parsedData;
 
-const parsedData = JSON.parse(id);
+      // Replace underscores with spaces in medicationName
+      medicationName = medicationName.replace(/_/g, ' ');
 
-let { action, taken, patientNumber, medicationName, timing, reminderDate, prescriptionId } = parsedData;
-
-// Replace underscores with spaces in medicationName
-medicationName = medicationName.replace(/_/g, ' ');
-
-
-
-console.log(`Parsed data: action=${action}, taken=${taken}, patientNumber=${patientNumber}, prescriptionId=${prescriptionId}, medicationName=${medicationName}, timing=${timing}, reminderDate=${reminderDate}`);
-
+      console.log(`Parsed data: action=${action}, taken=${taken}, patientNumber=${patientNumber}, prescriptionId=${prescriptionId}, medicationName=${medicationName}, timing=${timing}, reminderDate=${reminderDate}`);
 
       // Verify that the prescription is current and matches the medication
       const { data: prescription, error: prescriptionError } = await supabase
@@ -49,8 +44,8 @@ console.log(`Parsed data: action=${action}, taken=${taken}, patientNumber=${pati
         throw new Error('Medication name does not match the prescription');
       }
 
-      const isTaken = action === 'yes' && taken === 'taken';
-      
+      const isTaken = action === 'true' && taken === 'taken';
+
       try {
         // Call the update-adherence route
         const adherenceResponse = await fetch(`${NEXT_PUBLIC_BASE_URL}/api/update-adherence`, {
@@ -59,10 +54,11 @@ console.log(`Parsed data: action=${action}, taken=${taken}, patientNumber=${pati
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            prescriptionId,
+            prescription_id: prescriptionId,
             date: reminderDate,
             timing,
-            taken: isTaken
+            taken,
+            medicine_name: medicationName
           }),
         });
 
@@ -71,8 +67,8 @@ console.log(`Parsed data: action=${action}, taken=${taken}, patientNumber=${pati
           throw new Error(errorData.error || 'Failed to update adherence');
         }
 
-        const adherenceResult = await adherenceResponse.json();
-        console.log('Adherence update result:', adherenceResult);
+        const adherenceData = await adherenceResponse.json();
+        console.log('Adherence update result:', adherenceData);
 
         // Send confirmation message
         let confirmationMessage;

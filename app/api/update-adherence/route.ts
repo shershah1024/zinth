@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
     let result;
     if (existingEntry) {
-      // If entry exists, update it
+      // If entry exists, update it 
       const { data, error: updateError } = await supabase
         .from('medication_streak')
         .update({ [timing]: taken })
