@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
       try {
         console.log('Sending update-adherence request with data:', {
-          prescription_id: parseInt(prescriptionId, 10),
+          prescription_id: prescriptionId,
           date: reminderDate,
           timing,
           taken,
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            prescription_id: parseInt(prescriptionId, 10),
+            prescription_id: prescriptionId,
             date: reminderDate,
             timing,
             taken,
@@ -114,5 +114,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
-//pushing again
