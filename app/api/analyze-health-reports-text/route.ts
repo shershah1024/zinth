@@ -67,7 +67,7 @@ async function analyzeMedicalReport(text: string): Promise<AnalysisResult> {
 
   const tools = [{
     name: "medical_report_analysis",
-    description: "Analyze medical test report text and extract key components.",
+    description: "Analyze medical test message and extract key components.",
     input_schema: {
       type: "object",
       properties: {
@@ -76,7 +76,7 @@ async function analyzeMedicalReport(text: string): Promise<AnalysisResult> {
           items: {
             type: "object",
             properties: {
-              component: { type: "string", description: "Name of the test component" },
+              component: { type: "string", description: "Name of the test component. If it is part of the urine analysis preface the name of the component with 'Urine Test'" },
               value: { 
                 oneOf: [
                   { type: "number" },
@@ -89,7 +89,7 @@ async function analyzeMedicalReport(text: string): Promise<AnalysisResult> {
               normal_range_max: { type: "number", description: "Maximum of normal range" },
               normal_range_text: { type: "string", description: "Textual description of normal range" }
             },
-            required: ["component", "value", "unit"]
+            required: ["component"]
           },
           description: "List of test components and their details"
         },
