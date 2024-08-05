@@ -100,19 +100,19 @@ export async function POST(req: Request) {
     const message = data.entry[0]?.changes[0]?.value?.messages?.[0];
     if (!message) {
       console.log('No valid message in webhook data');
-      return NextResponse.json({ status: "OK" });
+      return NextResponse.json({ status: "OK" }, { status: 200 });
     }
 
     const sender = data.entry[0]?.changes[0]?.value?.contacts?.[0]?.wa_id;
     if (!sender) {
       console.log('No valid sender in webhook data');
-      return NextResponse.json({ status: "OK" });
+      return NextResponse.json({ status: "OK" }, { status: 200 });
     }
 
     // Check if we've already processed this message
     if (processedMessages.has(message.id)) {
       console.log(`Already processed message ${message.id}. Skipping.`);
-      return NextResponse.json({ status: "OK" });
+      return NextResponse.json({ status: "OK" }, { status: 200 });
     }
 
     // Mark this message as processed
@@ -126,38 +126,30 @@ export async function POST(req: Request) {
 
     if (isMessageOld(message.timestamp)) {
       console.log('Ignoring message older than 3 minutes');
-      return NextResponse.json({ status: "OK" });
+      return NextResponse.json({ status: "OK" }, { status: 200 });
     }
-
-    let response: string;
 
     switch (message.type) {
       case 'text':
-        response = await handleTextMessage(message, sender);
-        // Send response for text messages
-        await sendMessage(sender, response);
+        await handleTextMessage(message, sender);
         break;
       case 'image':
       case 'document':
-        // For media messages, the response is sent within handleMediaMessage
         await handleMediaMessage(message, sender);
         break;
       case 'interactive':
-        response = await handleInteractiveMessage(message, sender);
-        // Send response for interactive messages
-        await sendMessage(sender, response);
+        await handleInteractiveMessage(message, sender);
         break;
       default:
-        response = "Unsupported message type";
-        // Send response for unsupported types
-        await sendMessage(sender, response);
+        await sendMessage(sender, "Unsupported message type");
     }
 
-    // Return OK response after processing the message
-    return NextResponse.json({ status: "OK" });
+    // Always return OK response after processing the message
+    return NextResponse.json({ status: "OK" }, { status: 200 });
   } catch (error) {
     console.error('Error processing webhook:', error);
-    return NextResponse.json({ status: "OK" });
+    // Even in case of an error, return a 200 OK to acknowledge receipt
+    return NextResponse.json({ status: "OK" }, { status: 200 });
   }
 }
 
@@ -169,12 +161,13 @@ function isMessageOld(timestamp: string): boolean {
   return timeDifference > threeMinutesInMs;
 }
 
-async function handleTextMessage(message: WhatsAppMessage, sender: string): Promise<string> {
+async function handleTextMessage(message: WhatsAppMessage, sender: string): Promise<void> {
   if (message.text?.body) {
     console.log('Received text message:', message.text.body);
-    return `You said: ${message.text.body}`;
+    await sendMessage(sender, `You said: ${message.text.body}`);
+  } else {
+    await sendMessage(sender, "Received an empty text message");
   }
-  return "Received an empty text message";
 }
 
 async function classifyDocument(base64Image: string, mimeType: string): Promise<string> {
@@ -279,7 +272,7 @@ async function analyzePrescription(base64Images: string[], mimeType: string, pub
   return result.analysis;
 }
 
-async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<string> {
+async function handleMediaMessage(message: WhatsAppMessage, sender: string): Promise<void> {
   console.log(`Received ${message.type} message from ${sender}:`, message[message.type as 'image' | 'document']?.id);
 
   try {
@@ -344,22 +337,12 @@ async function handleMediaMessage(message: WhatsAppMessage, sender: string): Pro
 
     // Send the final response
     await sendMessage(sender, finalResponse);
-
-    // Send an OK response after the final message
-    await sendOkResponse();
-
-    return finalResponse;
   } catch (error) {
     console.error(`Error handling ${message.type} message from ${sender}:`, error);
     const errorMessage = `Sorry, there was an error processing your ${message.type}: ${error instanceof Error ? error.message : 'Unknown error'}`;
     
-    // Send the error message and wait for it to complete
+    // Send the error message
     await sendMessage(sender, errorMessage);
-    
-    // Send an OK response after the error message
-    await sendOkResponse();
-    
-    return errorMessage;
   }
 }
 
@@ -408,31 +391,11 @@ async function convertPdfToImages(publicUrl: string): Promise<{ base64_images: s
   return { base64_images: data.base64_images };
 }
 
-async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<string> {
+async function handleInteractiveMessage(message: WhatsAppMessage, sender: string): Promise<void> {
   if (message.interactive?.type === 'button_reply') {
     console.log('Received button reply:', message.interactive.button_reply);
-    return `You clicked: ${message.interactive.button_reply.title}`;
-  }
-  return 'Unsupported interactive message type';
-}
-
-async function sendOkResponse() {
-  try {
-    const response = await fetch('https://graph.facebook.com/v12.0/me/messages', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status: 'ok' }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    console.log('OK response sent successfully');
-  } catch (error) {
-    console.error('Error sending OK response:', error);
+    await sendMessage(sender, `You clicked: ${message.interactive.button_reply.title}`);
+  } else {
+    await sendMessage(sender, 'Unsupported interactive message type');
   }
 }
