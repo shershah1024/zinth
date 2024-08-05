@@ -2,6 +2,7 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -113,7 +114,15 @@ export function HealthRecordUploadForm({ processFile }: HealthRecordUploadFormPr
           ) : (
             <div className="flex-grow flex flex-col items-center justify-center bg-white rounded-lg p-6">
               {preview ? (
-                <img src={preview} alt="File preview" className="max-w-full max-h-[70vh] object-contain mb-4" />
+                <div className="relative w-full h-[70vh]">
+                  <Image 
+                    src={preview} 
+                    alt="File preview" 
+                    layout="fill" 
+                    objectFit="contain"
+                    className="mb-4"
+                  />
+                </div>
               ) : (
                 <File className="w-32 h-32 text-teal-500 mb-4" />
               )}

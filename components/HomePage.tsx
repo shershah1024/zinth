@@ -44,7 +44,7 @@ const HomePage: React.FC = () => {
               Zinth: <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">The Simplest Way to Track Your Health</span>
             </h1>
             <p className="text-xl text-gray-600 mb-8">
-              Manage your health effortlessly with Zinth's user-friendly app and WhatsApp integration. Track medications, get reminders, and update records - your choice, your convenience.
+              Manage your health effortlessly with Zinth&apos;s user-friendly app and WhatsApp integration. Track medications, get reminders, and update records - your choice, your convenience.
             </p>
             <Link href="/dashboard">
               <motion.button 
