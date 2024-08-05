@@ -26,6 +26,20 @@ interface AnalysisResult {
   analysis: string;
 }
 
+interface TextAnalysisResult {
+  components: Array<{
+    component: string;
+    value: number | string;
+    unit: string;
+    normal_range_min?: number;
+    normal_range_max?: number;
+    normal_range_text?: string;
+  }>;
+  date: string;
+}
+
+
+
 interface WhatsAppMessage {
   from: string;
   id: string;
@@ -244,25 +258,34 @@ async function handleTextMessage(message: WhatsAppMessage, sender: string): Prom
 
       const result = await response.json();
       console.log('Health report analysis result:', result);
-      
-      // Assuming the result contains a 'results' array with analyzed components
-      const analysisResults = result.results;
-      if (!analysisResults || analysisResults.length === 0) {
+
+      // Type assertion to treat the result as TextAnalysisResult
+      const analysisResult = result as TextAnalysisResult;
+
+      if (!analysisResult.components || analysisResult.components.length === 0) {
         throw new Error('No analysis results found');
       }
 
       // Extract the names of the components that were analyzed
-      const analyzedComponents = analysisResults[0].components
-        .map((component: any) => component.component)
+      const analyzedComponents = analysisResult.components
+        .map((component) => component.component)
         .join(', ');
-      
-      const responseMessage = `I have saved your health data including ${analyzedComponents}. You can view your health records at https://zinth.vercel.app/health-records`;
-      await sendMessage(sender, responseMessage);
+
+      // Create a simple summary message for the user
+      const summaryMessage = `We have saved ${analyzedComponents}. data. You can see it in your dashboard - https://zinth.vercel.app/health-records `;
+
+      console.log('Summary message for user:', summaryMessage);
+
+      // Send the summary message to the user
+      await sendMessage(sender, summaryMessage);
+
     } catch (error) {
-      console.error('Error processing text message:', error);
-      await sendMessage(sender, `Sorry, there was an error processing your message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error processing health report:', error);
+      const errorMessage = `Sorry, there was an error processing your message: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      await sendMessage(sender, errorMessage);
     }
   } else {
+    console.log('Received empty text message');
     await sendMessage(sender, "Received an empty text message");
   }
 }
