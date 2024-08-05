@@ -52,17 +52,9 @@ async function handleFetchErrors(response: Response) {
   }
 }
 
-function getCurrentTimeOfDay(): string | null {
-  const now = new Date();
-  const hours = now.getUTCHours() + TIMEZONE_OFFSET;
-  
-  if (hours >= 5 && hours < 11) return 'morning';
-  if (hours >= 11 && hours < 16) return 'afternoon';
-  if (hours >= 16 && hours < 21) return 'evening';
-  if (hours >= 21 || hours < 5) return 'night';
-  
-  return null;
-}
+function getCurrentTimeOfDay(): string {
+    // Always return 'morning' for testing purposes
+    return 'morning';}
 
 function getCurrentDate() {
   return new Date().toISOString().split('T')[0]; // Returns date in YYYY-MM-DD format
