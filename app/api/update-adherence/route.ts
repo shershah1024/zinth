@@ -11,10 +11,20 @@ const supabase = createClient(
 export async function POST(req: Request) {
   try {
     const requestBody = await req.text();
-    const { prescriptionId, date, timing, taken } = JSON.parse(requestBody);
+    const { prescriptionId, date, timing, status } = JSON.parse(requestBody);
     
     console.log("raw data is ", requestBody);
+
+    // Convert timing to lowercase
+    const normalizedTiming = timing.toLowerCase();
+
+    // Convert status to boolean
+    const taken = status === 'Taken';
+
+    console.log("normalized timing is", normalizedTiming);
+    console.log("status is", status);
     console.log("taken is", taken);
+
     // First, fetch the medicine name from the prescriptions table
     const { data: prescriptionData, error: prescriptionError } = await supabase
       .from('prescriptions')
@@ -45,7 +55,7 @@ export async function POST(req: Request) {
       // If entry exists, update it 
       const { data, error: updateError } = await supabase
         .from('medication_streak')
-        .update({ [timing]: taken })
+        .update({ [normalizedTiming]: taken })
         .eq('prescription_id', prescriptionId)
         .eq('date', date)
         .select();
@@ -60,7 +70,7 @@ export async function POST(req: Request) {
           prescription_id: prescriptionId,
           medicine_name: medicineName,
           date: date,
-          [timing]: taken
+          [normalizedTiming]: taken
         })
         .select();
       
