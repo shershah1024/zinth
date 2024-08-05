@@ -11,6 +11,7 @@ const supabase = createClient(
 export async function POST(req: Request) {
   try {
     const { prescriptionId, date, timing, taken } = await req.json();
+    console.log("teken is", taken)
 
     // First, fetch the medicine name from the prescriptions table
     const { data: prescriptionData, error: prescriptionError } = await supabase
