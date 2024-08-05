@@ -49,7 +49,8 @@ interface AnthropicResponse {
 }
 
 interface RequestBody {
-  text: string;
+  texts: string[];
+  mimeType: string;
 }
 
 function getTodayDate(): string {
@@ -158,6 +159,7 @@ async function storeResults(result: AnalysisResult): Promise<void> {
     date: result.date,
     public_url: "None", // Set to "None" for text-based reports
   }));
+
   const { data, error } = await supabase
     .from('medical_test_results')
     .insert(dataToInsert);
@@ -175,28 +177,39 @@ export async function POST(request: NextRequest) {
     const requestBody: RequestBody = await request.json();
     console.log('Received request body keys:', Object.keys(requestBody));
 
-    if (!requestBody.text || requestBody.text.trim().length === 0) {
-      console.error('Invalid input: text is missing or empty');
-      return NextResponse.json({ error: 'Text input is required' }, { status: 400 });
+    if (!requestBody.texts || requestBody.texts.length === 0) {
+      console.error('Invalid input: texts are missing or empty');
+      return NextResponse.json({ error: 'At least one text input is required' }, { status: 400 });
     }
 
-    console.log(`Processing medical report text...`);
+    if (!requestBody.mimeType) {
+      console.error('Invalid input: mimeType is missing');
+      return NextResponse.json({ error: 'mimeType is required' }, { status: 400 });
+    }
 
-    const analysisResult = await analyzeMedicalReport(requestBody.text);
+    console.log(`Processing ${requestBody.texts.length} texts...`);
 
-    console.log('Analysis Result:', JSON.stringify(analysisResult, null, 2));
+    const analysisResults: AnalysisResult[] = [];
+    for (const text of requestBody.texts) {
+      const result = await analyzeMedicalReport(text);
+      analysisResults.push(result);
+    }
+
+    console.log('Analysis Results:', JSON.stringify(analysisResults, null, 2));
 
     // Store the results
-    await storeResults(analysisResult);
+    for (const result of analysisResults) {
+      await storeResults(result);
+    }
 
     return NextResponse.json({ 
-      message: 'Medical report analyzed and stored successfully', 
-      result: analysisResult 
+      message: 'Medical reports analyzed and stored successfully', 
+      results: analysisResults 
     });
   } catch (error) {
-    console.error('Error processing medical report:', error);
+    console.error('Error processing medical reports:', error);
     return NextResponse.json({ 
-      error: 'Error processing medical report', 
+      error: 'Error processing medical reports', 
       details: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
