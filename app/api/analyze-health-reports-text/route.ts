@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { format } from 'date-fns';
+import { createClient } from '@supabase/supabase-js';
+import { v4 as uuidv4 } from 'uuid';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MAX_BATCH_SIZE = 3;
+const PATIENT_NUMBER = '919885842349';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY is not set in the environment variables');
 }
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: {
+    persistSession: false,
+  },
+});
 
 export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
@@ -144,24 +160,28 @@ async function analyzeMedicalReportBatch(texts: string[]): Promise<AnalysisResul
   return toolUseContent.input;
 }
 
-// Modified storeResults function with default publicUrl as None
-async function storeResults(results: AnalysisResult[], publicUrl: string | null = null): Promise<void> {
-  console.log(`[Result Storage] Storing results${publicUrl ? ` for URL: ${publicUrl}` : ''}`);
-  const endpoint = '/api/store/test-results';
-
-  const storeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ results, publicUrl })
+async function uploadToSupabase(results: AnalysisResult[], patientNumber: string) {
+  const dataToInsert = results.flatMap(result => {
+    const test_id = uuidv4(); // Generate a UUID for each test
+    return result.components.map(component => ({
+      test_id: test_id,
+      patient_number: patientNumber,
+      test_date: result.date,
+      test_component: component.component,
+      test_value: component.value,
+      test_unit: component.unit,
+      normal_range_min: component.normal_range_min,
+      normal_range_max: component.normal_range_max,
+      normal_range_text: component.normal_range_text
+    }));
   });
-  
-  if (!storeResponse.ok) {
-    const errorText = await storeResponse.text();
-    console.error(`[Result Storage] Failed with status ${storeResponse.status}. Error: ${errorText}`);
-    throw new Error(`Storage failed with status ${storeResponse.status}. Error: ${errorText}`);
-  }
 
-  console.log(`[Result Storage] Successfully stored results`);
+  const { data, error } = await supabase
+    .from('medical_test_results')
+    .insert(dataToInsert);
+
+  if (error) throw error;
+  return data;
 }
 
 export async function POST(request: NextRequest) {
@@ -185,7 +205,14 @@ export async function POST(request: NextRequest) {
 
     console.log('Analysis Results:', JSON.stringify(analysisResults, null, 2));
 
-    return NextResponse.json({ message: 'Medical reports analyzed successfully', results: analysisResults });
+    // Upload data to Supabase
+    const uploadedData = await uploadToSupabase(analysisResults, PATIENT_NUMBER);
+
+    return NextResponse.json({ 
+      message: 'Medical reports analyzed and uploaded to Supabase successfully', 
+      results: analysisResults,
+      uploadedData: uploadedData
+    });
   } catch (error) {
     console.error('Error processing medical reports:', error);
     return NextResponse.json({ 
