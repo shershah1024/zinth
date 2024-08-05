@@ -134,22 +134,26 @@ export async function POST(req: Request) {
     switch (message.type) {
       case 'text':
         response = await handleTextMessage(message, sender);
+        // Send response for text messages
+        await sendMessage(sender, response);
         break;
       case 'image':
       case 'document':
-        response = await handleMediaMessage(message, sender);
+        // For media messages, the response is sent within handleMediaMessage
+        await handleMediaMessage(message, sender);
         break;
       case 'interactive':
         response = await handleInteractiveMessage(message, sender);
+        // Send response for interactive messages
+        await sendMessage(sender, response);
         break;
       default:
         response = "Unsupported message type";
+        // Send response for unsupported types
+        await sendMessage(sender, response);
     }
 
-    // Send the response back to the user
-    await sendMessage(sender, response);
-
-    // Return OK response after sending the message
+    // Return OK response after processing the message
     return NextResponse.json({ status: "OK" });
   } catch (error) {
     console.error('Error processing webhook:', error);
